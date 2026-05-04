@@ -1,0 +1,2 @@
+"""Contract-horizon snapshot construction."""
+

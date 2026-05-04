@@ -14,6 +14,7 @@ None.
 
 | Date | Task | Files changed | Tests run | Notes |
 |---|---|---|---|---|
+| 2026-05-04 | Phase 0 repository bootstrap | `.gitignore`, `README.md`, `pyproject.toml`, `configs/README.md`, `data/README.md`, `data/interim/README.md`, `data/processed/README.md`, `data/artifacts/README.md`, `docs/README.md`, `notebooks/README.md`, `paper/README.md`, `scripts/README.md`, `src/predmkt/**/__init__.py`, `tests/test_import.py` | `.venv/bin/python -m pytest`; `.venv/bin/python -c "import sys; sys.path.insert(0, 'src'); import predmkt; print(predmkt.__version__)"` | Scaffolded package layout only. No data downloaded. No models implemented. `data/raw/` is documented as immutable and left without tracked files. `uv` was not installed locally, so verification used a local virtualenv. |
 
 ## Blockers
 
