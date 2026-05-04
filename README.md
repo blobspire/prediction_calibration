@@ -22,7 +22,26 @@ python -m pytest
 
 ## First Workflow Commands
 
-The current repository is Phase 0 scaffold only. Data download, model fitting, and analysis scripts will be added in later phases.
+The current repository supports read-only raw schema inspection. Data download, model fitting, and analysis scripts will be added in later phases.
+
+Inspect local raw files without modifying `data/raw/`:
+
+```bash
+uv run python scripts/inspect_raw_schema.py --raw-path data/raw
+```
+
+For the Becker dataset cloned under `data/raw/becker_prediction_market_analysis`, inspect representative Parquet files rather than hashing the entire raw tree:
+
+```bash
+uv run python scripts/inspect_raw_schema.py --raw-path data/raw/becker_prediction_market_analysis/data/kalshi/markets/markets_860000_870000.parquet
+uv run python scripts/inspect_raw_schema.py --raw-path data/raw/becker_prediction_market_analysis/data/kalshi/trades/trades_61810000_61820000.parquet
+```
+
+Audit the full Kalshi raw directory schemas without hashing every raw file:
+
+```bash
+uv run python scripts/audit_kalshi_raw.py --kalshi-path data/raw/becker_prediction_market_analysis/data/kalshi
+```
 
 Expected workflow once those phases exist:
 
@@ -33,7 +52,7 @@ uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
 uv run python scripts/make_figures.py --config configs/figures.yaml
 ```
 
-Until those scripts are implemented, use the smoke test to verify the package imports:
+Use the tests to verify the package imports and schema utilities:
 
 ```bash
 uv run pytest
@@ -44,6 +63,8 @@ uv run pytest
 `data/raw/` is immutable source data storage. Do not edit, normalize, deduplicate, or overwrite files in `data/raw/`. All transformations must write to `data/interim/`, `data/processed/`, or `data/artifacts/` and should record enough metadata to reproduce the output.
 
 No data has been downloaded for this scaffold.
+
+Current schema notes are in `docs/data_sources/becker_kalshi_schema.md`.
 
 ## Repository Layout
 
