@@ -133,6 +133,29 @@ A task is done only when:
 - Outputs are reproducible from configs or scripts.
 - The final response summarizes changed files and verification steps.
 
+## Documentation Updates
+When completing any implementation task or phase, evaluate whether `README.md` should be updated.
+
+Update `README.md` when the change affects:
+- setup or installation
+- CLI commands
+- configuration files
+- expected data layout
+- generated outputs
+- testing or validation commands
+- user-facing workflow
+- supported project functionality
+- known limitations or assumptions
+
+Do not update `README.md` for purely internal refactors, minor test-only changes, formatting-only changes, or implementation details that do not affect how a human or future agent should use the project.
+
+When updating `README.md`:
+- Keep it concise and operational.
+- Prefer command examples over prose.
+- Document only functionality that actually exists.
+- Do not claim scientific results unless they were produced from real data and saved outputs.
+- Link or refer to deeper docs when details belong elsewhere.
+
 ## Review focus
 When asked to review code, prioritize:
 1. Look-ahead leakage.
