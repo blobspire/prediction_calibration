@@ -1,0 +1,23 @@
+inputs:
+  raw_baseline_artifact_dir: data/artifacts/raw_baseline
+  raw_baseline_audit_dir: data/artifacts/raw_baseline/audit
+  snapshot_summary_path: data/processed/contract_horizon_panel_summary.json
+  modeling_panel_path: data/processed/modeling_panel.parquet
+
+outputs:
+  presentation_figure_dir: data/artifacts/presentation/figures
+
+presentation:
+  horizon_order: [30d, 14d, 7d, 3d, 1d, 6h, 1h, close]
+  aggregation_mode: equal_contract
+  figure_formats: [png, svg]
+  dpi: 200
+  slide_aspect_ratio: wide
+  before_refinement:
+    source_note: "Pre-refinement values copied from TASK_LOG raw baseline near-close calibration audit."
+    panel_rows: 1439680
+    close_rows: 518101
+    one_hour_rows: 392837
+    close_median_staleness_seconds: 9745
+    one_hour_median_staleness_seconds: 14520
+    complete_horizon_contracts: 5045

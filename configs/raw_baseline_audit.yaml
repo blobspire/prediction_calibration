@@ -1,0 +1,23 @@
+inputs:
+  modeling_panel_path: data/processed/modeling_panel.parquet
+  price_observations_path: data/interim/kalshi/price_observations.parquet
+  contracts_path: data/interim/kalshi/contracts.parquet
+  raw_baseline_artifact_dir: data/artifacts/raw_baseline
+
+outputs:
+  audit_dir: data/artifacts/raw_baseline/audit
+
+audit:
+  horizons: [30d, 14d, 7d, 3d, 1d, 6h, 1h, close]
+  close_and_near_horizons: [1h, close]
+  staleness_thresholds_seconds: [300, 900, 3600, 21600, 86400]
+  strict_vwap_windows_seconds: [300, 900, 3600, 21600]
+  strict_max_staleness_seconds: [300, 900, 3600, 21600, 86400]
+  log_loss_epsilon: 0.000001
+  reliability_bin_count: 10
+  calibration_min_rows: 50
+  calibration_max_iterations: 50
+  calibration_tolerance: 0.00000001
+  figure_formats: [png, svg]
+  figure_dpi: 180
+  close_stale_flag_threshold_seconds: 900

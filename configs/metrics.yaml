@@ -1,0 +1,66 @@
+inputs:
+  panel_path: data/processed/modeling_panel.parquet
+
+outputs:
+  artifact_dir: data/artifacts/raw_baseline
+
+metrics:
+  probability_column: raw_probability
+  outcome_column: observed_outcome
+  log_loss_epsilon: 0.000001
+  limit_rows:
+
+reliability:
+  bin_count: 10
+  min_bin_count: 30
+
+calibration:
+  min_rows: 50
+  max_iterations: 50
+  tolerance: 0.00000001
+
+aggregation:
+  primary: equal_contract
+  secondary:
+    - equal_event_family
+  include_trade_weighted_robustness: false
+  trade_weight_column: cumulative_volume_to_forecast
+
+grouping:
+  dimensions:
+    - name: overall
+      columns: []
+    - name: horizon
+      columns: [horizon_name]
+    - name: domain
+      columns: [domain]
+    - name: category
+      columns: [category]
+    - name: liquidity
+      columns: [liquidity_bucket]
+    - name: staleness
+      columns: [staleness_bucket]
+    - name: horizon_liquidity
+      columns: [horizon_name, liquidity_bucket]
+    - name: horizon_staleness
+      columns: [horizon_name, staleness_bucket]
+
+buckets:
+  liquidity:
+    column: public_liquidity_proxy
+    output_column: liquidity_bucket
+    edges: [2.0, 5.0]
+    labels:
+      - liquidity_lt_2_log_volume
+      - liquidity_2_to_5_log_volume
+      - liquidity_gte_5_log_volume
+  staleness:
+    column: price_staleness_seconds
+    output_column: staleness_bucket
+    edges: [3600, 21600, 86400, 604800]
+    labels:
+      - stale_lt_1h
+      - stale_1h_to_6h
+      - stale_6h_to_1d
+      - stale_1d_to_7d
+      - stale_gte_7d

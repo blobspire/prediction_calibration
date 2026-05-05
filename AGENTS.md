@@ -133,6 +133,96 @@ A task is done only when:
 - Outputs are reproducible from configs or scripts.
 - The final response summarizes changed files and verification steps.
 
+## Research-grade completion standard
+
+This project should be built incrementally, but completed phases must implement the full research-grade functionality required by `PROJECT_BRIEF.md` and `ROADMAP.md`.
+
+Do not treat a task as complete merely because a small sample, smoke test, or minimal implementation runs. Small samples are allowed for verification speed, but the implementation itself must support the full configured design for that phase.
+
+A phase is complete only when:
+- the implementation supports the full configured phase requirements;
+- the relevant config files exist and are the primary workflow;
+- the implementation is reusable under `src/predmkt/`, not only embedded in a script;
+- expected output schemas include canonical downstream fields;
+- tests cover scientific invariants and failure modes, not only happy paths;
+- scripts can reproduce outputs from committed configs;
+- README.md documents user-facing commands, outputs, and limitations;
+- TASK_LOG.md records completed work, tests, assumptions, limitations, and next recommended tasks.
+
+Smoke-test outputs must be labeled as smoke-test outputs. They must not be described as confirmatory results.
+
+If a task intentionally implements only a prototype, the agent must:
+1. label it as `PROTOTYPE` or `MVP` in `TASK_LOG.md`;
+2. list the missing functionality explicitly;
+3. add a follow-up repair/generalization task to `TASK_LOG.md`;
+4. not mark the roadmap phase complete.
+
+Never leave prototype-only functionality as the final implementation for a roadmap phase.
+
+## Phase gate rule
+
+Before starting a new roadmap phase, check whether the previous phase has a PASS audit.
+
+If the previous phase audit is missing, PARTIAL, or FAIL:
+- do not proceed to the next phase;
+- create or execute a repair task for the missing requirements;
+- update TASK_LOG.md with the blocker and repair plan.
+
+A phase audit should check:
+- alignment with ROADMAP.md;
+- alignment with PROJECT_BRIEF.md;
+- config-driven reproducibility;
+- canonical schemas needed by downstream phases;
+- tests for scientific invariants;
+- README.md updates;
+- TASK_LOG.md updates;
+- explicit limitations and placeholders;
+- no look-ahead leakage;
+- no accidental trade weighting;
+- no raw-data mutation.
+
+Only proceed when the phase is PASS or when the remaining issues are explicitly marked as non-blocking for the next phase.
+
+## Documentation contract
+
+Maintain documentation at three levels:
+
+1. `README.md` is the current user-facing operating manual.
+   - It should show current commands, configs, output paths, and known limitations.
+   - It should not include long implementation history.
+   - It should never claim functionality or scientific results that do not exist.
+
+2. `TASK_LOG.md` is the implementation history and current status log.
+   - It should record completed tasks, files changed, tests run, assumptions, blockers, limitations, and next recommended tasks.
+   - It should mark superseded MVP/prototype work clearly.
+   - It should keep the "Next candidate tasks" section current, removing or marking completed phases.
+
+3. `docs/` contains deeper methodology notes.
+   - Use it for data schemas, taxonomy methodology, feature definitions, validation design, fee/slippage assumptions, and robustness methodology.
+   - Any nontrivial scientific assumption should appear in either configs, docs, or both.
+
+When completing a task, update all three levels as relevant.
+
+## Capability registry
+
+Maintain `docs/CURRENT_CAPABILITIES.md` as the concise source of truth for what the codebase can currently do.
+
+Update it whenever a task:
+- adds a new command;
+- changes an output schema;
+- changes a config workflow;
+- adds or removes a limitation;
+- changes whether a phase is complete, partial, prototype, or blocked.
+
+The registry should distinguish:
+- `complete`
+- `partial`
+- `prototype`
+- `blocked`
+- `not implemented`
+
+Do not mark a capability `complete` if it depends on placeholder fields, smoke-only paths, hard-coded settings, or unimplemented downstream assumptions.
+
 ## Review focus
 When asked to review code, prioritize:
 1. Look-ahead leakage.

@@ -172,7 +172,7 @@ Run raw vs. recalibrated forecast comparisons out of sample.
 - Average and fold-level metrics are reported.
 - No model sees future labels or future prices.
 
-## Phase 8 — Edge simulation MVP
+## Phase 8 — Edge simulation
 
 ### Goal
 Convert out-of-sample calibrated probabilities into conservative expected-value screens.

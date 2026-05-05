@@ -1,1 +1,27 @@
-.DS_STORE
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.DS_Store
+
+# Environments
+.venv/
+venv/
+
+# Local and generated data
+data/raw/*
+data/interim/*
+data/processed/*
+data/artifacts/*
+!data/interim/README.md
+!data/processed/README.md
+!data/artifacts/README.md
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
