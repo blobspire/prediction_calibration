@@ -259,3 +259,73 @@ Observed initial taxonomy output:
 Current limitation:
 
 - The current taxonomy is only a conservative event-family proxy and unknown-domain placeholder. Do not claim domain-level findings or rely on event-family clustering as final until explicit mapping coverage is audited and expanded.
+
+## Feature Panel Notes
+
+The modeling feature panel reads the taxonomy-enriched snapshot panel, cleaned price observations, and cleaned contracts:
+
+```bash
+uv run python scripts/build_feature_panel.py --config configs/features.yaml
+```
+
+It writes:
+
+- `data/processed/modeling_panel.parquet`
+- `data/processed/modeling_panel_summary.json`
+
+Feature config:
+
+- Probability clipping epsilon: `0.000001`.
+- Momentum window: `24h`.
+- Volatility window: `24h`.
+- Liquidity window: `7d`.
+
+Feature construction rules:
+
+- All trade-derived features use only `source_ts <= forecast_ts`.
+- `raw_probability` is the snapshot panel's `snapshot_price`.
+- `clipped_probability` clips `raw_probability` to `[epsilon, 1 - epsilon]`.
+- `logit_probability` is computed from `clipped_probability`.
+- `horizon_name` is copied from `horizon_bucket`.
+- `horizon_timedelta` is copied from `horizon_timedelta_seconds`.
+- `forecast_month` is derived from `forecast_ts`.
+- `listing_month` is derived from cleaned contract `open_ts` when available.
+- Cumulative volume and trade count use all cleaned trades through `forecast_ts`.
+- Short-run momentum is the last minus first YES trade price inside the configured momentum window.
+- Short-run volatility is sample standard deviation of YES trade prices inside the configured volatility window.
+- `public_liquidity_proxy` is `log(1 + cumulative_volume_to_forecast)`.
+
+Missing or inferred feature flags:
+
+- `raw_probability_missing`.
+- `domain_missing_or_unknown`.
+- `category_missing_or_unknown`.
+- `event_family_id_inferred`.
+- `event_family_id_missing`.
+- `listing_ts_missing`.
+- `momentum_missing`.
+- `volatility_missing`.
+- `liquidity_missing`.
+
+Observed full feature output:
+
+- Input rows: 1,439,680.
+- Output rows: 1,439,680.
+- Duplicate rows: 0.
+- No-look-ahead validation passed with 0 bad forecast orders, 0 future feature sources, and 0 future price timestamps.
+- `domain_missing_or_unknown`: 1,439,680.
+- `category_missing_or_unknown`: 1,439,680.
+- `event_family_id_inferred`: 1,439,680.
+- `event_family_id_missing`: 0.
+- `listing_ts_missing`: 0.
+- `raw_probability_missing`: 0.
+- `liquidity_missing`: 0.
+- `momentum_missing`: 650,115.
+- `volatility_missing`: 650,115.
+
+Current limitations:
+
+- Domain/category features are placeholders until explicit taxonomy rules are added.
+- `event_family_id` currently uses the taxonomy layer's `event_id` proxy.
+- Liquidity uses public trade volume/count only, not order-book depth or executable quote liquidity.
+- Momentum and volatility use transaction prices, not quote midpoints or executable prices.

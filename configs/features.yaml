@@ -1,0 +1,18 @@
+inputs:
+  panel_path: data/processed/contract_horizon_panel_taxonomy.parquet
+  price_observations_path: data/interim/kalshi/price_observations.parquet
+  contracts_path: data/interim/kalshi/contracts.parquet
+
+outputs:
+  panel_path: data/processed/modeling_panel.parquet
+  summary_path: data/processed/modeling_panel_summary.json
+
+features:
+  probability_epsilon: 0.000001
+  momentum_window: 24h
+  volatility_window: 24h
+  liquidity_window: 7d
+  event_family_source: taxonomy_event_family_id
+  domain_category_source: taxonomy_fields
+  missing_domain_category_policy: keep_unknown_with_flags
+  limit_rows:

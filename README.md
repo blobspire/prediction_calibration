@@ -86,6 +86,26 @@ data/processed/contract_horizon_taxonomy_summary.json
 
 Do not report domain-level findings until taxonomy coverage has been audited.
 
+Build the modeling feature panel:
+
+```bash
+uv run python scripts/build_feature_panel.py --config configs/features.yaml
+```
+
+The feature config defines probability clipping, the 24h momentum/volatility
+windows, and the 7d liquidity window. The script uses only cleaned trade
+observations with `source_ts <= forecast_ts` and writes:
+
+```text
+data/processed/modeling_panel.parquet
+data/processed/modeling_panel_summary.json
+```
+
+Current domain/category values are inherited from the taxonomy panel and are
+`unknown` unless explicit taxonomy rules have been added. The feature panel
+includes flags for unknown taxonomy, inferred event-family IDs, missing listing
+timestamps, missing momentum/volatility windows, and missing liquidity inputs.
+
 Expected workflow once later phases exist:
 
 ```bash
