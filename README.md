@@ -125,6 +125,7 @@ uv run pytest
 `data/raw/` is immutable source data storage. Do not edit, normalize, deduplicate, or overwrite files in `data/raw/`. All transformations must write to `data/interim/`, `data/processed/`, or `data/artifacts/` and should record enough metadata to reproduce the output.
 
 Current schema notes are in `docs/data_sources/becker_kalshi_schema.md`.
+The current capability/status registry is in `docs/CURRENT_CAPABILITIES.md`.
 
 ## Repository Layout
 
