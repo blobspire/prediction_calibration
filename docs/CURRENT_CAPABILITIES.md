@@ -40,7 +40,7 @@ Status labels:
 | Phase 6 recalibrators | not implemented | Calibration package is only a placeholder. | Need raw/logistic/beta/isotonic interfaces and tests. |
 | Phase 7 walk-forward evaluation | not implemented | No fold-level model evaluation. | Need identical test folds, saved fold artifacts, config hashes, leakage checks. |
 | Phase 8 edge simulation | not implemented | Edge package is only a placeholder. | Need fees, slippage, liquidity/staleness filters, lockup assumptions, conservative labels. |
-| Phase 9 plots/reports | not implemented | Plot/report packages are only placeholders. | Need manuscript-ready figure/table generation from saved artifacts. |
+| Phase 9 plots/reports | partial | Raw-baseline pandas/matplotlib diagnostic figures can be generated from saved metric artifacts. | Need manuscript-ready figure/table generation for full raw-vs-recalibrated results. |
 | Phase 10 replication/robustness | not implemented | No replication command or robustness configs. | Need end-to-end small pipeline and robustness checks. |
 
 ## Current Commands
@@ -67,6 +67,7 @@ uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
 uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
 uv run python scripts/build_feature_panel.py --config configs/features.yaml
 uv run python scripts/evaluate_raw.py --config configs/metrics.yaml
+uv run python scripts/plot_raw_baseline.py --config configs/figures.yaml
 ```
 
 Run tests:
@@ -75,7 +76,7 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `37 passed`.
+Latest local verification used `uv run pytest` and passed `39 passed`.
 `uv run ruff check .` also passes. The full raw baseline evaluation completed
 on 1,439,680 modeling rows.
 
@@ -87,10 +88,10 @@ on 1,439,680 modeling rows.
 | `configs/taxonomy.yaml` | partial | Conservative taxonomy enrichment, explicit event-id mapping rules, default unknown domain/category, event-id event-family proxy. |
 | `configs/features.yaml` | partial | Modeling feature inputs/outputs, probability epsilon, 24h momentum/volatility windows, 7d liquidity window, missing-feature policy. |
 | `configs/metrics.yaml` | complete | Raw baseline metric input/output paths, log-loss clipping epsilon, reliability bins, calibration fit settings, groupings, and equal-contract primary aggregation. |
+| `configs/figures.yaml` | partial | Raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI. |
 | `configs/models.yaml` | not implemented | Needed for model/recalibrator settings. |
 | `configs/validation.yaml` | not implemented | Needed for walk-forward split settings. |
 | `configs/backtest.yaml` | not implemented | Needed for edge simulation assumptions. |
-| `configs/figures.yaml` | not implemented | Needed for publication figures. |
 
 ## Local Data Artifacts
 
@@ -125,6 +126,12 @@ Processed outputs:
 - `data/artifacts/raw_baseline/calibration_fits.parquet`
 - `data/artifacts/raw_baseline/missing_feature_notes.parquet`
 - `data/artifacts/raw_baseline/summary.json`
+- `data/artifacts/raw_baseline/figures/raw_baseline_metric_overview.{png,svg}`
+- `data/artifacts/raw_baseline/figures/raw_baseline_horizon_metrics.{png,svg}`
+- `data/artifacts/raw_baseline/figures/raw_baseline_calibration_by_horizon.{png,svg}`
+- `data/artifacts/raw_baseline/figures/raw_baseline_reliability_overall.{png,svg}`
+- `data/artifacts/raw_baseline/figures/raw_baseline_reliability_by_horizon.{png,svg}`
+- `data/artifacts/raw_baseline/figures/raw_baseline_plot_summary.json`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -248,6 +255,24 @@ Limitations:
 - Domain/category grouped outputs are not domain-level findings while taxonomy coverage is `unknown`.
 - Liquidity/staleness groups use public feature-panel proxies, not executable quote or order-book data.
 
+### `src/predmkt/plots/`
+
+Status: partial.
+
+Capabilities:
+
+- Generates pandas/matplotlib PNG and SVG diagnostic figures from raw baseline metric artifacts.
+- Current figures cover metric overview, horizon-level Brier/log-loss/ECE,
+  calibration intercept/slope by horizon, overall reliability bins, and
+  reliability by horizon.
+- Writes a plot summary JSON with source artifacts and effective config.
+
+Limitations:
+
+- Figures are raw-baseline diagnostics only, not final manuscript styling.
+- No recalibrated-model, walk-forward, edge, or publication table plots exist yet.
+- Domain/category plots are omitted while taxonomy coverage is unknown.
+
 ### Placeholder Packages
 
 Status: not implemented.
@@ -255,7 +280,6 @@ Status: not implemented.
 - `src/predmkt/validation/`
 - `src/predmkt/calibration/`
 - `src/predmkt/edge/`
-- `src/predmkt/plots/`
 - `src/predmkt/reports/`
 
 These packages currently contain only package docstrings and should not be treated as functional.
@@ -277,6 +301,7 @@ Implemented tests:
 - Reliability empty/sparse bin tests.
 - Calibration fit and degenerate-group tests.
 - Tests proving primary aggregation is not trade-weighted by default and trade weighting is opt-in.
+- Raw-baseline plot config loading and PNG/SVG output smoke tests.
 
 Missing high-priority tests:
 
@@ -295,7 +320,7 @@ Cannot yet claim:
 - Recalibration gains.
 - Conservative tradable edge.
 - Event-family leakage safety.
-- Publication-ready figures or tables.
+- Publication-ready figures or tables beyond raw-baseline diagnostic PNG/SVGs.
 
 Required next build steps:
 

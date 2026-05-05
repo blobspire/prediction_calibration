@@ -1,0 +1,11 @@
+inputs:
+  raw_baseline_artifact_dir: data/artifacts/raw_baseline
+
+outputs:
+  raw_baseline_figure_dir: data/artifacts/raw_baseline/figures
+
+raw_baseline:
+  horizon_order: [30d, 14d, 7d, 3d, 1d, 6h, 1h, close]
+  aggregation_mode: equal_contract
+  figure_formats: [png, svg]
+  dpi: 180

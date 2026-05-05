@@ -133,12 +133,32 @@ does not perform walk-forward model evaluation. Domain/category grouped rows are
 currently taxonomy placeholders because the public Becker/Kalshi fields still
 map to `unknown` unless explicit taxonomy rules are added.
 
+Create raw-baseline research diagnostics from the saved metric artifacts:
+
+```bash
+uv run python scripts/plot_raw_baseline.py --config configs/figures.yaml
+```
+
+The figure config reads `data/artifacts/raw_baseline/` and writes pandas /
+matplotlib PNG and SVG visualizations:
+
+```text
+data/artifacts/raw_baseline/figures/raw_baseline_metric_overview.{png,svg}
+data/artifacts/raw_baseline/figures/raw_baseline_horizon_metrics.{png,svg}
+data/artifacts/raw_baseline/figures/raw_baseline_calibration_by_horizon.{png,svg}
+data/artifacts/raw_baseline/figures/raw_baseline_reliability_overall.{png,svg}
+data/artifacts/raw_baseline/figures/raw_baseline_reliability_by_horizon.{png,svg}
+data/artifacts/raw_baseline/figures/raw_baseline_plot_summary.json
+```
+
+These are robust raw-baseline diagnostics, not final manuscript graphics or
+recalibrated-model plots.
+
 Expected workflow once later phases exist:
 
 ```bash
 uv run python scripts/fit_walkforward.py --config configs/models.yaml
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
-uv run python scripts/make_figures.py --config configs/figures.yaml
 ```
 
 Use the tests to verify the package imports and schema utilities:
