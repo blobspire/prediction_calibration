@@ -51,7 +51,7 @@ class KalshiRawPaths:
     trades_dir: Path
 
     @classmethod
-    def from_kalshi_root(cls, root: Path) -> "KalshiRawPaths":
+    def from_kalshi_root(cls, root: Path) -> KalshiRawPaths:
         return cls(markets_dir=root / "markets", trades_dir=root / "trades")
 
 
@@ -70,4 +70,3 @@ def trade_scanner(paths: KalshiRawPaths, batch_size: int = 1_000_000) -> ds.Scan
         columns=list(KALSHI_TRADE_COLUMNS),
         batch_size=batch_size,
     )
-

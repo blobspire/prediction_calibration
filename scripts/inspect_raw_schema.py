@@ -36,7 +36,13 @@ def main() -> int:
 
     inspections = inspect_raw_path(args.raw_path)
     if args.format == "json":
-        print(json.dumps([_inspection_to_dict(item) for item in inspections], indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                [_inspection_to_dict(item) for item in inspections],
+                indent=2,
+                sort_keys=True,
+            )
+        )
     else:
         print(format_markdown(inspections, args.raw_path))
     return 0
@@ -89,7 +95,9 @@ def format_markdown(inspections: tuple[RawFileInspection, ...], raw_path: Path) 
                 accepted = ", ".join(field.accepted_names)
                 matched = field.matched_column if field.matched_column is not None else "<missing>"
                 required = "required" if field.required else "optional"
-                lines.append(f"- `{field.field_name}` ({required}): `{matched}`; accepts `{accepted}`")
+                lines.append(
+                    f"- `{field.field_name}` ({required}): `{matched}`; accepts `{accepted}`"
+                )
         lines.append("")
     return "\n".join(lines).rstrip()
 

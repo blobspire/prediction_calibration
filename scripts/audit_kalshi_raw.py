@@ -44,7 +44,8 @@ def _print_directory(name: str, audit, schema) -> None:
     print(f"- Files: `{audit.file_count}`")
     print(f"- Unique schemas: `{len(audit.schema_groups)}`")
     print(f"- Unreadable files: `{len(audit.unreadable_files)}`")
-    print(f"- Satisfies `{schema.name}` schema for all unique schemas: `{schema_ok_for_all(audit, schema)}`")
+    schema_ok = schema_ok_for_all(audit, schema)
+    print(f"- Satisfies `{schema.name}` schema for all unique schemas: `{schema_ok}`")
     for index, group in enumerate(audit.schema_groups, start=1):
         print(f"- Schema {index} file count: `{group.file_count}`")
         print(f"- Schema {index} example: `{group.example_path}`")
@@ -53,4 +54,3 @@ def _print_directory(name: str, audit, schema) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

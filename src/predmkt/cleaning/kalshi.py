@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -46,7 +46,7 @@ class KalshiInterimOutputs:
     summary: Path
 
     @classmethod
-    def from_output_dir(cls, output_dir: Path) -> "KalshiInterimOutputs":
+    def from_output_dir(cls, output_dir: Path) -> KalshiInterimOutputs:
         return cls(
             output_dir=output_dir,
             contracts=output_dir / "contracts.parquet",
@@ -90,7 +90,11 @@ def clean_contracts(raw_markets: pa.Table) -> CleanedTable:
     if duplicate_count > 0:
         exclusion_counts["duplicate_resolved_market_snapshot"] = duplicate_count
 
-    return CleanedTable(table=table, raw_rows=raw_markets.num_rows, exclusion_counts=exclusion_counts)
+    return CleanedTable(
+        table=table,
+        raw_rows=raw_markets.num_rows,
+        exclusion_counts=exclusion_counts,
+    )
 
 
 def clean_price_observations(
@@ -126,7 +130,11 @@ def clean_price_observations(
             ("invalid_taker_side", pc.invert(masks["valid_taker_side"])),
         ),
     )
-    return CleanedTable(table=table, raw_rows=raw_trades.num_rows, exclusion_counts=exclusion_counts)
+    return CleanedTable(
+        table=table,
+        raw_rows=raw_trades.num_rows,
+        exclusion_counts=exclusion_counts,
+    )
 
 
 def build_interim_kalshi(
@@ -181,7 +189,9 @@ def build_interim_kalshi(
             "markets_dir": str(raw_paths.markets_dir),
             "trades_dir": str(raw_paths.trades_dir),
         },
-        "outputs": {key: str(value) for key, value in asdict(outputs).items() if key != "output_dir"},
+        "outputs": {
+            key: str(value) for key, value in asdict(outputs).items() if key != "output_dir"
+        },
         "contracts": {
             "raw_rows": contracts_result.raw_rows,
             "cleaned_rows": contracts_result.cleaned_rows,
@@ -195,9 +205,18 @@ def build_interim_kalshi(
             "exclusion_counts": price_exclusions,
         },
         "assumptions": {
-            "contract_filter": "market_type == binary; status == finalized; result in {yes,no}; close_time present",
-            "price_filter": "trade has resolved binary contract_id, source timestamp, prices in [1,99], positive count, taker_side in {yes,no}",
-            "unit_of_analysis_note": "Price observations remain trade observations only as source data for later contract-horizon snapshot construction.",
+            "contract_filter": (
+                "market_type == binary; status == finalized; result in {yes,no}; "
+                "close_time present"
+            ),
+            "price_filter": (
+                "trade has resolved binary contract_id, source timestamp, prices in [1,99], "
+                "positive count, taker_side in {yes,no}"
+            ),
+            "unit_of_analysis_note": (
+                "Price observations remain trade observations only as source data for later "
+                "contract-horizon snapshot construction."
+            ),
         },
     }
     outputs.summary.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
@@ -344,7 +363,8 @@ def _write_exclusion_summary(
     rows = [{"reason": reason, "rows": count} for reason, count in sorted(counts.items())]
     rows.append({"reason": "cleaned_rows", "rows": cleaned_rows})
     rows.append({"reason": "raw_rows", "rows": raw_rows})
-    table = pa.Table.from_pylist(rows, schema=pa.schema([("reason", pa.string()), ("rows", pa.int64())]))
+    schema = pa.schema([("reason", pa.string()), ("rows", pa.int64())])
+    table = pa.Table.from_pylist(rows, schema=schema)
     pq.write_table(table, path)
 
 

@@ -75,10 +75,9 @@ Run tests:
 uv run pytest
 ```
 
-Latest local metric verification used `.venv/bin/python -m pytest tests/test_metrics.py` and
-passed `7 passed`; the full raw baseline evaluation also completed on 1,439,680
-modeling rows.
-`ruff` and `mypy` are declared in `pyproject.toml` but were not installed in the current local `.venv` when last attempted.
+Latest local verification used `uv run pytest` and passed `37 passed`.
+`uv run ruff check .` also passes. The full raw baseline evaluation completed
+on 1,439,680 modeling rows.
 
 ## Config Registry
 

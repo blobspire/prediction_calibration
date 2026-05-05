@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 
 @dataclass(frozen=True)
@@ -58,7 +58,9 @@ class SchemaValidationResult:
 
     @property
     def missing_required(self) -> tuple[str, ...]:
-        return tuple(field.field_name for field in self.fields if field.required and not field.present)
+        return tuple(
+            field.field_name for field in self.fields if field.required and not field.present
+        )
 
     @property
     def ok(self) -> bool:
@@ -151,7 +153,11 @@ def validate_columns(columns: Iterable[str], schema: TableSchema) -> SchemaValid
     for field in schema.fields:
         accepted_names = tuple((field.name, *field.aliases))
         matched_column = next(
-            (column_lookup[name.lower()] for name in accepted_names if name.lower() in column_lookup),
+            (
+                column_lookup[name.lower()]
+                for name in accepted_names
+                if name.lower() in column_lookup
+            ),
             None,
         )
         if matched_column is not None:
@@ -172,4 +178,3 @@ def validate_columns(columns: Iterable[str], schema: TableSchema) -> SchemaValid
         fields=tuple(field_results),
         extra_columns=extra_columns,
     )
-

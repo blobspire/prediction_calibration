@@ -22,6 +22,8 @@ def test_inspect_raw_path_reads_parquet_columns(tmp_path: Path) -> None:
     assert len(inspection) == 1
     assert inspection[0].columns == ("ticker", "created_time", "yes_price")
     price_schema = next(
-        result for result in inspection[0].schema_results if result.schema_name == "price_observations"
+        result
+        for result in inspection[0].schema_results
+        if result.schema_name == "price_observations"
     )
     assert price_schema.ok
