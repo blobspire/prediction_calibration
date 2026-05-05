@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -25,6 +24,16 @@ class HorizonSpec:
 
 
 @dataclass(frozen=True)
+class HorizonSnapshotPolicy:
+    """Snapshot construction policy for one horizon bucket."""
+
+    horizon_name: str
+    max_staleness: timedelta
+    vwap_window: timedelta
+    snapshot_methods: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SnapshotBuildConfig:
     """Configuration for building a contract-horizon snapshot panel."""
 
@@ -36,6 +45,7 @@ class SnapshotBuildConfig:
     max_staleness: timedelta
     vwap_window: timedelta
     snapshot_methods: tuple[str, ...] = ("vwap", "last_trade")
+    horizon_policies: tuple[HorizonSnapshotPolicy, ...] = ()
     limit_contracts: int | None = None
     config_path: Path | None = None
     config_sha256: str | None = None
@@ -61,6 +71,7 @@ class SnapshotBuildSummary:
     max_staleness_seconds: int
     vwap_window_seconds: int
     snapshot_methods: list[str]
+    horizon_snapshot_policies: dict[str, dict[str, Any]]
     limit_contracts: int | None
     effective_config: dict[str, Any]
     assumptions: dict[str, str]
@@ -162,10 +173,33 @@ def load_snapshot_config(path: Path) -> SnapshotBuildConfig:
     if any(horizon.name == "close" for horizon in horizons) and "1 minute" not in close_definition:
         raise ValueError("sampling.close_horizon_definition must document `close` as 1 minute")
 
+    snapshot = sampling.get("snapshot", {})
+    if snapshot is None:
+        snapshot = {}
+    if not isinstance(snapshot, dict):
+        raise ValueError("sampling.snapshot must be a mapping when provided")
+
     snapshot_methods = tuple(
-        str(item) for item in sampling.get("snapshot_methods", ("vwap", "last_trade"))
+        str(item)
+        for item in snapshot.get(
+            "default_method_preference",
+            sampling.get("snapshot_methods", ("vwap", "last_trade")),
+        )
     )
     _validate_snapshot_methods(snapshot_methods)
+    max_staleness = parse_duration(
+        str(snapshot.get("default_max_staleness", sampling.get("max_staleness", "7d")))
+    )
+    vwap_window = parse_duration(
+        str(snapshot.get("default_vwap_window", sampling.get("vwap_window", "6h")))
+    )
+    horizon_policies = _load_horizon_policies(
+        horizons=horizons,
+        snapshot=snapshot,
+        default_max_staleness=max_staleness,
+        default_vwap_window=vwap_window,
+        default_snapshot_methods=snapshot_methods,
+    )
 
     return SnapshotBuildConfig(
         contracts_path=Path(_required(inputs, "contracts_path")),
@@ -173,9 +207,10 @@ def load_snapshot_config(path: Path) -> SnapshotBuildConfig:
         output_path=Path(_required(outputs, "panel_path")),
         summary_path=Path(_required(outputs, "summary_path")),
         horizons=horizons,
-        max_staleness=parse_duration(str(_required(sampling, "max_staleness"))),
-        vwap_window=parse_duration(str(_required(sampling, "vwap_window"))),
+        max_staleness=max_staleness,
+        vwap_window=vwap_window,
         snapshot_methods=snapshot_methods,
+        horizon_policies=horizon_policies,
         limit_contracts=_optional_int(sampling.get("limit_contracts")),
         config_path=path,
         config_sha256=hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),
@@ -192,7 +227,7 @@ def build_snapshot_panel(config: SnapshotBuildConfig) -> SnapshotBuildSummary:
     con = duckdb.connect()
     try:
         _configure_connection(con)
-        _create_horizons(con, config.horizons, config.max_staleness, config.vwap_window)
+        _create_horizons(con, config)
         _create_candidates(con, config)
         _create_latest_pre_forecast(con, config)
         _create_last_trade(con, config)
@@ -252,24 +287,25 @@ def _configure_connection(con: duckdb.DuckDBPyConnection) -> None:
 
 def _create_horizons(
     con: duckdb.DuckDBPyConnection,
-    horizons: Iterable[HorizonSpec],
-    max_staleness: timedelta,
-    vwap_window: timedelta,
+    config: SnapshotBuildConfig,
 ) -> None:
+    policies = _policy_by_horizon(config)
     values = ", ".join(
         "("
         f"{_sql_string(horizon.name)}, "
         f"{int(horizon.duration.total_seconds())}, "
         f"INTERVAL {int(horizon.duration.total_seconds())} SECOND, "
-        f"INTERVAL {int(max_staleness.total_seconds())} SECOND, "
-        f"INTERVAL {int(vwap_window.total_seconds())} SECOND"
+        f"INTERVAL {int(policies[horizon.name].max_staleness.total_seconds())} SECOND, "
+        f"INTERVAL {int(policies[horizon.name].vwap_window.total_seconds())} SECOND, "
+        f"{'true' if policies[horizon.name].snapshot_methods[0] == 'vwap' else 'false'}, "
+        f"{_sql_string(','.join(policies[horizon.name].snapshot_methods))}"
         ")"
-        for horizon in horizons
+        for horizon in config.horizons
     )
     con.execute(
         "CREATE TEMP TABLE horizons("
         "horizon_bucket, horizon_timedelta_seconds, horizon_interval, "
-        "max_staleness_interval, vwap_window_interval"
+        "max_staleness_interval, vwap_window_interval, prefer_vwap, snapshot_methods"
         f") AS SELECT * FROM (VALUES {values})"
     )
 
@@ -295,6 +331,8 @@ def _create_candidates(con: duckdb.DuckDBPyConnection, config: SnapshotBuildConf
             h.horizon_interval,
             h.max_staleness_interval,
             h.vwap_window_interval,
+            h.prefer_vwap,
+            h.snapshot_methods,
             c.resolution_ts - h.horizon_interval AS forecast_ts
         FROM {contracts_sql} AS c
         CROSS JOIN horizons AS h
@@ -386,25 +424,22 @@ def _create_vwap(con: duckdb.DuckDBPyConnection, config: SnapshotBuildConfig) ->
 
 
 def _create_panel(con: duckdb.DuckDBPyConnection, config: SnapshotBuildConfig) -> None:
-    prefer_vwap = config.snapshot_methods[0] == "vwap"
     snapshot_price = (
-        "CASE WHEN v.vwap_trade_count IS NOT NULL THEN v.vwap_price "
+        "CASE WHEN c.prefer_vwap AND v.vwap_trade_count IS NOT NULL THEN v.vwap_price "
         "ELSE lt.last_trade_price END"
     )
     snapshot_price_cents = (
-        "CASE WHEN v.vwap_trade_count IS NOT NULL THEN v.vwap_price_cents "
+        "CASE WHEN c.prefer_vwap AND v.vwap_trade_count IS NOT NULL THEN v.vwap_price_cents "
         "ELSE lt.last_trade_price_cents END"
     )
-    snapshot_method = "CASE WHEN v.vwap_trade_count IS NOT NULL THEN 'vwap' ELSE 'last_trade' END"
+    snapshot_method = (
+        "CASE WHEN c.prefer_vwap AND v.vwap_trade_count IS NOT NULL "
+        "THEN 'vwap' ELSE 'last_trade' END"
+    )
     price_timestamp = (
-        "CASE WHEN v.vwap_trade_count IS NOT NULL THEN v.max_source_ts "
+        "CASE WHEN c.prefer_vwap AND v.vwap_trade_count IS NOT NULL THEN v.max_source_ts "
         "ELSE lt.last_trade_ts END"
     )
-    if not prefer_vwap:
-        snapshot_price = "lt.last_trade_price"
-        snapshot_price_cents = "lt.last_trade_price_cents"
-        snapshot_method = "'last_trade'"
-        price_timestamp = "lt.last_trade_ts"
 
     con.execute(
         f"""
@@ -417,6 +452,11 @@ def _create_panel(con: duckdb.DuckDBPyConnection, config: SnapshotBuildConfig) -
                 AS observed_outcome,
             c.horizon_bucket,
             c.horizon_timedelta_seconds,
+            c.snapshot_methods AS horizon_snapshot_methods,
+            date_diff('second', c.forecast_ts - c.max_staleness_interval, c.forecast_ts)
+                AS horizon_max_staleness_seconds,
+            date_diff('second', c.forecast_ts - c.vwap_window_interval, c.forecast_ts)
+                AS horizon_vwap_window_seconds,
             c.forecast_ts,
             c.resolution_ts,
             lt.last_trade_price,
@@ -550,6 +590,7 @@ def _build_summary(
         max_staleness_seconds=int(config.max_staleness.total_seconds()),
         vwap_window_seconds=int(config.vwap_window.total_seconds()),
         snapshot_methods=list(config.snapshot_methods),
+        horizon_snapshot_policies=_horizon_policy_summary(config),
         limit_contracts=config.limit_contracts,
         effective_config=_effective_config(config),
         assumptions={
@@ -562,9 +603,13 @@ def _build_summary(
             ),
             "vwap": (
                 "volume-weighted average over cleaned observations in "
-                "[forecast_ts - vwap_window, forecast_ts]"
+                "[forecast_ts - horizon-specific vwap_window, forecast_ts]"
             ),
-            "primary_snapshot_price": "short-window VWAP when available, otherwise last trade",
+            "primary_snapshot_price": (
+                "selected by horizon-specific snapshot method preference; current "
+                "config prefers last_trade by default and retains VWAP as a "
+                "diagnostic robustness field"
+            ),
             "close_horizon": (
                 "`close` is one minute before resolution_ts to preserve "
                 "forecast_ts < resolution_ts"
@@ -594,10 +639,95 @@ def _effective_config(config: SnapshotBuildConfig) -> dict[str, Any]:
             "vwap_window": _format_duration(config.vwap_window),
             "vwap_window_seconds": int(config.vwap_window.total_seconds()),
             "snapshot_methods": list(config.snapshot_methods),
+            "snapshot": {
+                "default_method_preference": list(config.snapshot_methods),
+                "default_max_staleness": _format_duration(config.max_staleness),
+                "default_vwap_window": _format_duration(config.vwap_window),
+                "horizons": _horizon_policy_summary(config),
+            },
             "limit_contracts": config.limit_contracts,
         },
         "config_path": str(config.config_path) if config.config_path else None,
         "config_sha256": config.config_sha256,
+    }
+
+
+def _load_horizon_policies(
+    *,
+    horizons: tuple[HorizonSpec, ...],
+    snapshot: dict[str, Any],
+    default_max_staleness: timedelta,
+    default_vwap_window: timedelta,
+    default_snapshot_methods: tuple[str, ...],
+) -> tuple[HorizonSnapshotPolicy, ...]:
+    raw_policies = snapshot.get("horizons", {})
+    if raw_policies is None:
+        raw_policies = {}
+    if not isinstance(raw_policies, dict):
+        raise ValueError("sampling.snapshot.horizons must be a mapping when provided")
+
+    horizon_names = {horizon.name for horizon in horizons}
+    unknown = sorted(set(raw_policies) - horizon_names)
+    if unknown:
+        raise ValueError(f"sampling.snapshot.horizons has unknown horizons: {unknown}")
+
+    policies: list[HorizonSnapshotPolicy] = []
+    for horizon in horizons:
+        raw_policy = raw_policies.get(horizon.name, {})
+        if raw_policy is None:
+            raw_policy = {}
+        if not isinstance(raw_policy, dict):
+            raise ValueError(f"snapshot policy for {horizon.name!r} must be a mapping")
+        methods = tuple(
+            str(item)
+            for item in raw_policy.get("method_preference", default_snapshot_methods)
+        )
+        _validate_snapshot_methods(methods)
+        policies.append(
+            HorizonSnapshotPolicy(
+                horizon_name=horizon.name,
+                max_staleness=parse_duration(
+                    str(raw_policy.get("max_staleness", _format_duration(default_max_staleness)))
+                ),
+                vwap_window=parse_duration(
+                    str(raw_policy.get("vwap_window", _format_duration(default_vwap_window)))
+                ),
+                snapshot_methods=methods,
+            )
+        )
+    return tuple(policies)
+
+
+def _policy_by_horizon(config: SnapshotBuildConfig) -> dict[str, HorizonSnapshotPolicy]:
+    policies = {
+        policy.horizon_name: policy
+        for policy in config.horizon_policies
+    }
+    result: dict[str, HorizonSnapshotPolicy] = {}
+    for horizon in config.horizons:
+        result[horizon.name] = policies.get(
+            horizon.name,
+            HorizonSnapshotPolicy(
+                horizon_name=horizon.name,
+                max_staleness=config.max_staleness,
+                vwap_window=config.vwap_window,
+                snapshot_methods=config.snapshot_methods,
+            ),
+        )
+    return result
+
+
+def _horizon_policy_summary(config: SnapshotBuildConfig) -> dict[str, dict[str, Any]]:
+    return {
+        name: {
+            "max_staleness": _format_duration(policy.max_staleness),
+            "max_staleness_seconds": int(policy.max_staleness.total_seconds()),
+            "vwap_window": _format_duration(policy.vwap_window),
+            "vwap_window_seconds": int(policy.vwap_window.total_seconds()),
+            "method_preference": list(policy.snapshot_methods),
+            "primary_method": policy.snapshot_methods[0],
+        }
+        for name, policy in _policy_by_horizon(config).items()
     }
 
 

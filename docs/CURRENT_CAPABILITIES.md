@@ -32,7 +32,7 @@ Status labels:
 | Phase 1 raw schema inspection | complete | Read-only raw inspection, Parquet schema audit, schema validators, timestamp parsing tests. | Raw hash manifests are available for representative files, not all 50G by default. |
 | Becker raw data setup | complete | Becker repo/data present under `data/raw/becker_prediction_market_analysis`; raw repo clean. | Raw data is local and ignored; another machine must clone/download separately. |
 | Phase 2 raw-to-interim Kalshi cleaning | partial | Resolved binary contracts and cleaned price observations are built and logged. | `close_time` remains provisional resolution timestamp; no richer void/delist semantic review by family. |
-| Phase 3 contract-horizon snapshots | complete | Config-driven full horizon grid, last-trade/VWAP snapshots, no-look-ahead validation, canonical panel schema. | Snapshot uses trade proxy only; no historical quotes/order book. |
+| Phase 3 contract-horizon snapshots | complete | Config-driven full horizon grid, horizon-specific last-trade/VWAP policy, no-look-ahead validation, canonical panel schema. | Snapshot uses trade proxy only; no historical quotes/order book. |
 | Conservative taxonomy layer | partial | Adds `domain`, `category`, `event_family_id`, taxonomy audit, and explicit rule config. | All domain/category values are `unknown`; event family is `event_id` proxy. |
 | Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Domain/category placeholders; liquidity is public trade proxy only; momentum/volatility use transaction prices. |
 | Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs remain taxonomy placeholders until coverage improves. |
@@ -68,6 +68,8 @@ uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
 uv run python scripts/build_feature_panel.py --config configs/features.yaml
 uv run python scripts/evaluate_raw.py --config configs/metrics.yaml
 uv run python scripts/plot_raw_baseline.py --config configs/figures.yaml
+uv run python scripts/audit_raw_baseline.py --config configs/raw_baseline_audit.yaml
+uv run python scripts/make_presentation_figures.py --config configs/presentation.yaml
 ```
 
 Run tests:
@@ -76,19 +78,22 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `39 passed`.
+Latest local verification used `uv run pytest` and passed `44 passed`.
 `uv run ruff check .` also passes. The full raw baseline evaluation completed
-on 1,439,680 modeling rows.
+on 554,249 modeling rows, and the near-close audit completed on the same
+panel.
 
 ## Config Registry
 
 | Config | Status | Purpose |
 |---|---|---|
-| `configs/sampling.yaml` | complete | Snapshot inputs/outputs, horizon grid, `close = resolution_ts - 1 minute`, `7d` max staleness, `6h` VWAP window, snapshot method preference. |
+| `configs/sampling.yaml` | complete | Snapshot inputs/outputs, horizon grid, `close = resolution_ts - 1 minute`, horizon-specific staleness/VWAP windows, and snapshot method preference. |
 | `configs/taxonomy.yaml` | partial | Conservative taxonomy enrichment, explicit event-id mapping rules, default unknown domain/category, event-id event-family proxy. |
 | `configs/features.yaml` | partial | Modeling feature inputs/outputs, probability epsilon, 24h momentum/volatility windows, 7d liquidity window, missing-feature policy. |
 | `configs/metrics.yaml` | complete | Raw baseline metric input/output paths, log-loss clipping epsilon, reliability bins, calibration fit settings, groupings, and equal-contract primary aggregation. |
 | `configs/figures.yaml` | partial | Raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI. |
+| `configs/raw_baseline_audit.yaml` | partial | Diagnostics for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics. |
+| `configs/presentation.yaml` | partial | Slide-ready raw-baseline figure inputs, presentation output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values. |
 | `configs/models.yaml` | not implemented | Needed for model/recalibrator settings. |
 | `configs/validation.yaml` | not implemented | Needed for walk-forward split settings. |
 | `configs/backtest.yaml` | not implemented | Needed for edge simulation assumptions. |
@@ -113,12 +118,12 @@ Interim outputs:
 
 Processed outputs:
 
-- `data/processed/contract_horizon_panel.parquet`: 1,439,680 rows.
+- `data/processed/contract_horizon_panel.parquet`: 554,249 rows.
 - `data/processed/contract_horizon_panel_summary.json`
-- `data/processed/contract_horizon_panel_taxonomy.parquet`: 1,439,680 rows.
+- `data/processed/contract_horizon_panel_taxonomy.parquet`: 554,249 rows.
 - `data/processed/contract_horizon_taxonomy_audit.parquet`
 - `data/processed/contract_horizon_taxonomy_summary.json`
-- `data/processed/modeling_panel.parquet`: 1,439,680 rows.
+- `data/processed/modeling_panel.parquet`: 554,249 rows.
 - `data/processed/modeling_panel_summary.json`
 - `data/artifacts/raw_baseline/metrics_overall.parquet`
 - `data/artifacts/raw_baseline/metrics_by_group.parquet`
@@ -132,6 +137,20 @@ Processed outputs:
 - `data/artifacts/raw_baseline/figures/raw_baseline_reliability_overall.{png,svg}`
 - `data/artifacts/raw_baseline/figures/raw_baseline_reliability_by_horizon.{png,svg}`
 - `data/artifacts/raw_baseline/figures/raw_baseline_plot_summary.json`
+- `data/artifacts/raw_baseline/audit/audit_summary.json`
+- `data/artifacts/raw_baseline/audit/staleness_by_horizon_method.parquet`
+- `data/artifacts/raw_baseline/audit/snapshot_method_counts.parquet`
+- `data/artifacts/raw_baseline/audit/snapshot_method_metrics.parquet`
+- `data/artifacts/raw_baseline/audit/strict_close_1h_variant_metrics.parquet`
+- `data/artifacts/raw_baseline/audit/balanced_horizon_metrics.parquet`
+- `data/artifacts/raw_baseline/audit/orientation_sanity_by_outcome.parquet`
+- `data/artifacts/raw_baseline/audit/close_timestamp_semantics.parquet`
+- `data/artifacts/raw_baseline/audit/close_stale_flags.parquet`
+- `data/artifacts/raw_baseline/audit/figures/*.png`
+- `data/artifacts/raw_baseline/audit/figures/*.svg`
+- `data/artifacts/presentation/figures/presentation_*.png`
+- `data/artifacts/presentation/figures/presentation_*.svg`
+- `data/artifacts/presentation/figures/presentation_figure_summary.json`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -181,7 +200,11 @@ Capabilities:
 - Defines `close` as one minute before `resolution_ts`.
 - Builds one row per `contract_id x horizon_bucket`.
 - Uses only observations with `source_ts <= forecast_ts`.
-- Supports last-trade and short-window VWAP snapshots.
+- Supports horizon-specific last-trade and short-window VWAP policies.
+- Current configured primary snapshot method is last trade for all horizons,
+  with horizon-specific VWAP fields retained for robustness diagnostics.
+- Current configured staleness limits are `7d` for `30d/14d/7d`, `3d` for
+  `3d`, `1d` for `1d`, `6h` for `6h`, `1h` for `1h`, and `5m` for `close`.
 - Records staleness and source timestamps.
 - Writes summary metadata, effective config, candidate/drop counts, horizon counts, method counts, duplicate checks, and no-look-ahead checks.
 - Validation fails on duplicate keys or look-ahead sources.
@@ -189,7 +212,7 @@ Capabilities:
 Limitations:
 
 - Snapshot price is a transaction proxy because historical quotes/order-book depth are unavailable.
-- Last-trade stale tolerance and VWAP window are configured globally, not domain-specific.
+- Snapshot policy is horizon-specific but not domain-specific.
 
 ### `src/predmkt/taxonomy/`
 
@@ -265,13 +288,44 @@ Capabilities:
 - Current figures cover metric overview, horizon-level Brier/log-loss/ECE,
   calibration intercept/slope by horizon, overall reliability bins, and
   reliability by horizon.
+- Generates raw-baseline audit diagnostics for staleness, snapshot method,
+  stricter close/1h variants, balanced-horizon panels, outcome orientation, and
+  close timestamp semantics. The current policy reduced close median selected
+  price staleness to `74s` and 1h median staleness to `509s`.
 - Writes a plot summary JSON with source artifacts and effective config.
+- Generates slide-ready presentation figures covering the pipeline, snapshot
+  policy, horizon sample counts, scores, reliability, calibration, staleness,
+  probability distributions, calibration-gap heatmap, balanced-panel
+  comparison, orientation checks, close timestamp semantics, methodology
+  refinement, and a summary dashboard.
 
 Limitations:
 
-- Figures are raw-baseline diagnostics only, not final manuscript styling.
+- Figures are raw-baseline diagnostics and presentation aids only, not final
+  manuscript styling.
+- The near-close audit is diagnostic only and does not select a revised snapshot
+  method or stale-price rule.
 - No recalibrated-model, walk-forward, edge, or publication table plots exist yet.
 - Domain/category plots are omitted while taxonomy coverage is unknown.
+
+### `src/predmkt/reports/`
+
+Status: partial.
+
+Capabilities:
+
+- Generates raw-baseline audit tables and figures for staleness, snapshot-method
+  sensitivity, stricter close/1h variants, balanced-horizon composition,
+  YES-side outcome orientation, and close timestamp semantics.
+- Records whether cleaned contract `close_time` is available separately; current
+  cleaned data retains `resolution_ts` but not a separate `close_time` column.
+- Writes machine-readable audit artifacts and an effective config summary under
+  `data/artifacts/raw_baseline/audit/`.
+
+Limitations:
+
+- Reports are diagnostic only and do not revise the baseline methodology.
+- No manuscript-ready tables or full raw-vs-recalibrated report exists yet.
 
 ### Placeholder Packages
 
@@ -280,7 +334,6 @@ Status: not implemented.
 - `src/predmkt/validation/`
 - `src/predmkt/calibration/`
 - `src/predmkt/edge/`
-- `src/predmkt/reports/`
 
 These packages currently contain only package docstrings and should not be treated as functional.
 
@@ -302,6 +355,8 @@ Implemented tests:
 - Calibration fit and degenerate-group tests.
 - Tests proving primary aggregation is not trade-weighted by default and trade weighting is opt-in.
 - Raw-baseline plot config loading and PNG/SVG output smoke tests.
+- Raw-baseline audit config loading and synthetic staleness/method/balanced/orientation tests.
+- Presentation figure config loading and PNG output smoke tests.
 
 Missing high-priority tests:
 

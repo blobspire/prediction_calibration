@@ -62,7 +62,20 @@ uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
 
 The sampling config defines the default horizon grid
 `30d,14d,7d,3d,1d,6h,1h,close`, `close = resolution_ts - 1 minute`,
-the `7d` stale-price tolerance, and the `6h` VWAP window. The script writes:
+and a horizon-specific snapshot policy. The current policy uses last trade as
+the primary snapshot, retains horizon-specific VWAP fields for diagnostics, and
+tightens near-close stale-price rules:
+
+```text
+30d/14d/7d: 6h VWAP window, 7d max staleness
+3d:         6h VWAP window, 3d max staleness
+1d:         1h VWAP window, 1d max staleness
+6h:         15m VWAP window, 6h max staleness
+1h:         5m VWAP window, 1h max staleness
+close:      last-trade primary, 5m VWAP window, 5m max staleness
+```
+
+The script writes:
 
 ```text
 data/processed/contract_horizon_panel.parquet
@@ -153,6 +166,45 @@ data/artifacts/raw_baseline/figures/raw_baseline_plot_summary.json
 
 These are robust raw-baseline diagnostics, not final manuscript graphics or
 recalibrated-model plots.
+
+Audit near-close raw-baseline calibration patterns before changing methodology:
+
+```bash
+uv run python scripts/audit_raw_baseline.py --config configs/raw_baseline_audit.yaml
+```
+
+The audit writes diagnostic tables and figures under:
+
+```text
+data/artifacts/raw_baseline/audit/
+data/artifacts/raw_baseline/audit/figures/
+```
+
+It checks staleness by horizon/method, snapshot-method metrics, stricter 1h/close
+VWAP and max-staleness variants, complete-horizon balanced panels, YES-side
+price/outcome orientation, and close timestamp semantics. These outputs are
+diagnostics only; they do not revise the baseline methodology or make the raw
+baseline finding final.
+
+Create presentation-ready visuals from the current raw-baseline artifacts:
+
+```bash
+uv run python scripts/make_presentation_figures.py --config configs/presentation.yaml
+```
+
+The presentation figures are written to:
+
+```text
+data/artifacts/presentation/figures/
+```
+
+They include a pipeline flowchart, snapshot-policy heatmap, horizon sample
+funnel, horizon metric triptych, reliability small multiples, close reliability
+zoom, calibration bars, staleness percentiles, probability distributions,
+calibration-gap heatmap, balanced-panel comparison, orientation sanity check,
+close timestamp semantics, methodology-refinement comparison, and a summary
+dashboard. These are slide-ready raw-baseline visuals, not final
+walk-forward/recalibrated-model results.
 
 Expected workflow once later phases exist:
 

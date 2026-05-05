@@ -17,9 +17,39 @@ sampling:
     - 1h
     - close
   close_horizon_definition: close = resolution_ts - 1 minute
-  max_staleness: 7d
-  vwap_window: 6h
-  snapshot_methods:
-    - vwap
-    - last_trade
+  snapshot:
+    default_method_preference:
+      - last_trade
+      - vwap
+    default_max_staleness: 7d
+    default_vwap_window: 6h
+    horizons:
+      30d:
+        vwap_window: 6h
+        max_staleness: 7d
+      14d:
+        vwap_window: 6h
+        max_staleness: 7d
+      7d:
+        vwap_window: 6h
+        max_staleness: 7d
+      3d:
+        vwap_window: 6h
+        max_staleness: 3d
+      1d:
+        vwap_window: 1h
+        max_staleness: 1d
+      6h:
+        vwap_window: 15m
+        max_staleness: 6h
+      1h:
+        vwap_window: 5m
+        max_staleness: 1h
+      close:
+        method_preference:
+          - last_trade
+          - vwap
+        vwap_window: 5m
+        max_staleness: 5m
+        notes: "Close uses last_trade as the primary snapshot; 5m VWAP is retained for robustness diagnostics."
   limit_contracts:

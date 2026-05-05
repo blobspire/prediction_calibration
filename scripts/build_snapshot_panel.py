@@ -96,6 +96,10 @@ def main() -> int:
             vwap_window=parse_duration("6h"),
         )
 
+    global_policy_override = any(
+        value is not None
+        for value in (args.max_staleness, args.vwap_window, args.snapshot_methods)
+    )
     config = replace(
         config,
         contracts_path=args.contracts or config.contracts_path,
@@ -110,6 +114,7 @@ def main() -> int:
         snapshot_methods=tuple(part.strip() for part in args.snapshot_methods.split(","))
         if args.snapshot_methods
         else config.snapshot_methods,
+        horizon_policies=() if global_policy_override else config.horizon_policies,
         limit_contracts=(
             args.limit_contracts if args.limit_contracts is not None else config.limit_contracts
         ),

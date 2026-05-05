@@ -8,6 +8,7 @@ import pytest
 
 from predmkt.sampling.snapshots import (
     DEFAULT_HORIZON_NAMES,
+    HorizonSnapshotPolicy,
     HorizonSpec,
     SnapshotBuildConfig,
     SnapshotValidationError,
@@ -57,9 +58,18 @@ outputs:
 sampling:
   horizons: [30d, 14d, 7d, 3d, 1d, 6h, 1h, close]
   close_horizon_definition: close = resolution_ts - 1 minute
-  max_staleness: 7d
-  vwap_window: 6h
-  snapshot_methods: [vwap, last_trade]
+  snapshot:
+    default_method_preference: [last_trade, vwap]
+    default_max_staleness: 7d
+    default_vwap_window: 6h
+    horizons:
+      1h:
+        vwap_window: 5m
+        max_staleness: 1h
+      close:
+        method_preference: [last_trade, vwap]
+        vwap_window: 5m
+        max_staleness: 5m
   limit_contracts:
 """,
         encoding="utf-8",
@@ -79,7 +89,12 @@ sampling:
     ]
     assert config.max_staleness == parse_duration("7d")
     assert config.vwap_window == parse_duration("6h")
-    assert config.snapshot_methods == ("vwap", "last_trade")
+    assert config.snapshot_methods == ("last_trade", "vwap")
+    assert config.horizon_policies[-2].horizon_name == "1h"
+    assert config.horizon_policies[-2].vwap_window == parse_duration("5m")
+    assert config.horizon_policies[-2].max_staleness == parse_duration("1h")
+    assert config.horizon_policies[-1].horizon_name == "close"
+    assert config.horizon_policies[-1].max_staleness == parse_duration("5m")
     assert config.config_path == config_path
     assert config.config_sha256
 
@@ -140,6 +155,68 @@ def test_build_snapshot_panel_prevents_lookahead_and_computes_vwap(tmp_path: Pat
         "vwap",
         "last_trade",
     ]
+
+
+def test_horizon_specific_snapshot_policy_controls_primary_method_and_staleness(
+    tmp_path: Path,
+) -> None:
+    contracts = tmp_path / "contracts.parquet"
+    prices = tmp_path / "prices.parquet"
+    output = tmp_path / "panel.parquet"
+    summary = tmp_path / "summary.json"
+    pq.write_table(_contracts_table(), contracts)
+    pq.write_table(_policy_prices_table(), prices)
+
+    build_summary = build_snapshot_panel(
+        SnapshotBuildConfig(
+            contracts_path=contracts,
+            price_observations_path=prices,
+            output_path=output,
+            summary_path=summary,
+            horizons=(
+                HorizonSpec("1h", parse_duration("1h")),
+                HorizonSpec("close", parse_duration("close")),
+            ),
+            max_staleness=parse_duration("7d"),
+            vwap_window=parse_duration("6h"),
+            snapshot_methods=("last_trade", "vwap"),
+            horizon_policies=(
+                HorizonSnapshotPolicy(
+                    horizon_name="1h",
+                    max_staleness=parse_duration("2h"),
+                    vwap_window=parse_duration("1h"),
+                    snapshot_methods=("vwap", "last_trade"),
+                ),
+                HorizonSnapshotPolicy(
+                    horizon_name="close",
+                    max_staleness=parse_duration("5m"),
+                    vwap_window=parse_duration("5m"),
+                    snapshot_methods=("last_trade", "vwap"),
+                ),
+            ),
+        )
+    )
+
+    panel = pq.read_table(output)
+    validate_snapshot_panel(panel)
+    rows = {row["horizon_bucket"]: row for row in panel.to_pylist()}
+
+    assert build_summary.row_count == 2
+    assert rows["1h"]["snapshot_method"] == "vwap"
+    assert rows["1h"]["horizon_vwap_window_seconds"] == 3_600
+    assert rows["1h"]["horizon_max_staleness_seconds"] == 7_200
+    assert rows["1h"]["vwap_trade_count"] == 2
+    assert rows["1h"]["vwap_price"] == pytest.approx((0.20 * 10 + 0.50 * 20) / 30)
+    assert rows["close"]["snapshot_method"] == "last_trade"
+    assert rows["close"]["snapshot_price"] == 0.9
+    assert rows["close"]["horizon_vwap_window_seconds"] == 300
+    assert rows["close"]["horizon_max_staleness_seconds"] == 300
+    assert rows["close"]["staleness_seconds"] == 60
+
+    summary_payload = json.loads(summary.read_text(encoding="utf-8"))
+    policies = summary_payload["horizon_snapshot_policies"]
+    assert policies["close"]["primary_method"] == "last_trade"
+    assert policies["1h"]["primary_method"] == "vwap"
 
 
 def test_build_snapshot_panel_has_at_most_one_row_per_contract_horizon(tmp_path: Path) -> None:
@@ -256,6 +333,26 @@ def _prices_table() -> pa.Table:
             "yes_price_cents": [20, 40, 99],
             "yes_price": [0.20, 0.40, 0.99],
             "volume": [10, 20, 1000],
+        }
+    )
+
+
+def _policy_prices_table() -> pa.Table:
+    return pa.table(
+        {
+            "trade_id": ["first_1h", "last_1h", "close_trade", "future"],
+            "contract_id": ["A", "A", "A", "A"],
+            "source_ts": _ts_array(
+                [
+                    datetime(2024, 1, 9, 22, 15, tzinfo=UTC),
+                    datetime(2024, 1, 9, 22, 50, tzinfo=UTC),
+                    datetime(2024, 1, 9, 23, 58, tzinfo=UTC),
+                    datetime(2024, 1, 10, 0, 1, tzinfo=UTC),
+                ]
+            ),
+            "yes_price_cents": [20, 50, 90, 99],
+            "yes_price": [0.20, 0.50, 0.90, 0.99],
+            "volume": [10, 20, 100, 1000],
         }
     )
 
