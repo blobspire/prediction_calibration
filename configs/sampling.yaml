@@ -1,0 +1,25 @@
+inputs:
+  contracts_path: data/interim/kalshi/contracts.parquet
+  price_observations_path: data/interim/kalshi/price_observations.parquet
+
+outputs:
+  panel_path: data/processed/contract_horizon_panel.parquet
+  summary_path: data/processed/contract_horizon_panel_summary.json
+
+sampling:
+  horizons:
+    - 30d
+    - 14d
+    - 7d
+    - 3d
+    - 1d
+    - 6h
+    - 1h
+    - close
+  close_horizon_definition: close = resolution_ts - 1 minute
+  max_staleness: 7d
+  vwap_window: 6h
+  snapshot_methods:
+    - vwap
+    - last_trade
+  limit_contracts:

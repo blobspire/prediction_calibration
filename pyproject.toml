@@ -8,7 +8,9 @@ authors = [
   { name = "Prediction Calibration Contributors" }
 ]
 dependencies = [
-  "pyarrow>=16.0"
+  "duckdb>=1.1",
+  "pyarrow>=16.0",
+  "pyyaml>=6.0"
 ]
 
 [dependency-groups]

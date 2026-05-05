@@ -22,7 +22,9 @@ python -m pytest
 
 ## First Workflow Commands
 
-The current repository supports read-only raw schema inspection. Data download, model fitting, and analysis scripts will be added in later phases.
+The current repository supports raw schema inspection, Kalshi interim cleaning, and
+contract-horizon snapshot construction. Model fitting and metric scripts will be added
+in later phases.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -51,10 +53,24 @@ uv run python scripts/build_interim_kalshi.py \
   --output-dir data/interim/kalshi
 ```
 
-Expected workflow once those phases exist:
+Build a contract-horizon snapshot panel from cleaned interim data:
 
 ```bash
 uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
+```
+
+The sampling config defines the default horizon grid
+`30d,14d,7d,3d,1d,6h,1h,close`, `close = resolution_ts - 1 minute`,
+the `7d` stale-price tolerance, and the `6h` VWAP window. The script writes:
+
+```text
+data/processed/contract_horizon_panel.parquet
+data/processed/contract_horizon_panel_summary.json
+```
+
+Expected workflow once later phases exist:
+
+```bash
 uv run python scripts/fit_walkforward.py --config configs/models.yaml
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
 uv run python scripts/make_figures.py --config configs/figures.yaml
@@ -69,8 +85,6 @@ uv run pytest
 ## Data Policy
 
 `data/raw/` is immutable source data storage. Do not edit, normalize, deduplicate, or overwrite files in `data/raw/`. All transformations must write to `data/interim/`, `data/processed/`, or `data/artifacts/` and should record enough metadata to reproduce the output.
-
-No data has been downloaded for this scaffold.
 
 Current schema notes are in `docs/data_sources/becker_kalshi_schema.md`.
 

@@ -160,3 +160,51 @@ The cleaned contract output has one row per `contract_id`; the initial invariant
 - The interim cleaning pipeline writes one row per resolved binary contract to `data/interim/kalshi/contracts.parquet`.
 - The interim `price_observations.parquet` remains a source-observation table, not the confirmatory analysis table. Contract-horizon sampling happens later.
 - The interim builder filters price observations to contracts identified in the cleaned resolved-binary contract table. This is an inclusion filter for the resolved-contract study population, not a contract-horizon analysis row definition.
+
+## Snapshot Panel Notes
+
+The initial snapshot builder reads only cleaned interim data:
+
+```bash
+uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
+```
+
+The output has at most one row per `contract_id x horizon_bucket`. It includes both last-trade and short-window VWAP fields on the same row. The primary `snapshot_price` uses VWAP when at least one trade is present in the VWAP window, otherwise it falls back to last trade.
+
+Canonical fields for downstream metrics include `contract_id`, `event_id`, `outcome`, `observed_outcome`, `horizon_bucket`, `horizon_timedelta_seconds`, `forecast_ts`, `resolution_ts`, `snapshot_price`, `snapshot_method`, `price_timestamp`, and `staleness_seconds`. Existing source-method fields such as `last_trade_ts`, `max_source_ts`, `vwap_volume`, and `vwap_trade_count` are preserved.
+
+Initial full horizon-grid output:
+
+- Output path: `data/processed/contract_horizon_panel.parquet`.
+- Summary path: `data/processed/contract_horizon_panel_summary.json`.
+- Horizons: `30d`, `14d`, `7d`, `3d`, `1d`, `6h`, `1h`, `close`.
+- `close` is operationalized as one minute before `resolution_ts` so every row still satisfies `forecast_ts < resolution_ts`.
+- Maximum last-trade staleness: `7d`.
+- VWAP window: `6h`.
+- Rows: 1,439,680.
+- Candidate rows before price/staleness filtering: 58,515,000.
+- Dropped with no pre-forecast price: 57,037,707.
+- Dropped as stale under the `7d` tolerance: 37,613.
+- `30d` rows: 7,992.
+- `14d` rows: 11,836.
+- `7d` rows: 18,062.
+- `3d` rows: 50,469.
+- `1d` rows: 141,332.
+- `6h` rows: 299,051.
+- `1h` rows: 392,837.
+- `close` rows: 518,101.
+- Snapshot method counts: `vwap`: 888,766; `last_trade`: 550,914.
+- Duplicate-key validation passed with 0 duplicate rows.
+- No-look-ahead validation passed with 0 bad forecast orders, 0 future last trades, 0 future VWAP sources, and 0 future price timestamps.
+
+No-look-ahead invariant:
+
+- `forecast_ts = resolution_ts - horizon`.
+- `forecast_ts < resolution_ts`.
+- `last_trade_ts <= forecast_ts`.
+- `max_source_ts <= forecast_ts` when VWAP observations exist.
+- `price_timestamp <= forecast_ts`.
+
+Current limitation:
+
+- Domain/category and event-family taxonomy fields are not available in the cleaned interim contracts yet. The panel preserves `event_id`, but Phase 5 should add explicit event-family mapping before event-family leakage checks or clustered inference.

@@ -4,3 +4,6 @@ YAML configuration files will define data paths, sampling rules, model settings,
 
 Keep methodological assumptions explicit here rather than hidden in notebooks or scripts.
 
+Current configs:
+
+- `sampling.yaml`: contract-horizon snapshot inputs, outputs, horizon grid, stale-price tolerance, VWAP window, and snapshot method preference.
