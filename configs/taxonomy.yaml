@@ -1,0 +1,18 @@
+inputs:
+  panel_path: data/processed/contract_horizon_panel.parquet
+  contracts_path: data/interim/kalshi/contracts.parquet
+
+outputs:
+  panel_path: data/processed/contract_horizon_panel_taxonomy.parquet
+  audit_path: data/processed/contract_horizon_taxonomy_audit.parquet
+  summary_path: data/processed/contract_horizon_taxonomy_summary.json
+
+taxonomy:
+  default_domain: unknown
+  default_category: unknown
+  default_taxonomy_source: event_id_proxy
+  default_taxonomy_confidence: low
+  default_taxonomy_notes: event_family_id defaults to event_id; domain/category are unknown unless an explicit rule maps them.
+  event_family_proxy: event_id
+  title_inference: disabled
+  explicit_event_id_mappings: []

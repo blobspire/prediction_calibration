@@ -4,3 +4,8 @@ Command-line entrypoints for reproducible workflows will live here.
 
 Scripts should read explicit configs and write outputs to the appropriate data or paper directories.
 
+Current data-build scripts:
+
+- `build_interim_kalshi.py`: immutable raw Kalshi Parquet to cleaned interim tables.
+- `build_snapshot_panel.py`: cleaned interim tables to contract-horizon snapshot panel.
+- `build_taxonomy_panel.py`: snapshot panel plus cleaned contract metadata to taxonomy-enriched panel and taxonomy audit outputs.

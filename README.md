@@ -68,6 +68,24 @@ data/processed/contract_horizon_panel.parquet
 data/processed/contract_horizon_panel_summary.json
 ```
 
+Add conservative taxonomy fields to the snapshot panel:
+
+```bash
+uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
+```
+
+The taxonomy config currently uses `event_id` as the `event_family_id` proxy and
+sets `domain` and `category` to `unknown` unless an explicit `event_id` rule is
+added. Title-based inference is disabled. The script writes:
+
+```text
+data/processed/contract_horizon_panel_taxonomy.parquet
+data/processed/contract_horizon_taxonomy_audit.parquet
+data/processed/contract_horizon_taxonomy_summary.json
+```
+
+Do not report domain-level findings until taxonomy coverage has been audited.
+
 Expected workflow once later phases exist:
 
 ```bash

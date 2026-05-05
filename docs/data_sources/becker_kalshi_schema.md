@@ -208,3 +208,54 @@ No-look-ahead invariant:
 Current limitation:
 
 - Domain/category and event-family taxonomy fields are not available in the cleaned interim contracts yet. The panel preserves `event_id`, but Phase 5 should add explicit event-family mapping before event-family leakage checks or clustered inference.
+
+## Taxonomy Enrichment Notes
+
+The taxonomy enrichment layer reads the processed snapshot panel and cleaned contract metadata:
+
+```bash
+uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
+```
+
+It writes:
+
+- `data/processed/contract_horizon_panel_taxonomy.parquet`
+- `data/processed/contract_horizon_taxonomy_audit.parquet`
+- `data/processed/contract_horizon_taxonomy_summary.json`
+
+Canonical taxonomy fields:
+
+- `domain`
+- `category`
+- `event_family_id`
+- `taxonomy_source`
+- `taxonomy_confidence`
+- `taxonomy_notes`
+
+Conservative default rules:
+
+- `event_family_id` defaults to `event_id`.
+- If `event_id` is missing, `event_family_id` falls back to `contract_id` so every row remains usable for invariant checks.
+- `domain` defaults to `unknown`.
+- `category` defaults to `unknown`.
+- `taxonomy_source` defaults to `event_id_proxy`.
+- `taxonomy_confidence` defaults to `low`.
+- Title-based inference is disabled. Titles and subtitles are preserved for later audited mapping work.
+- Explicit exact-match `event_id` mapping rules in `configs/taxonomy.yaml` override defaults.
+
+Observed initial taxonomy output:
+
+- Input rows: 1,439,680.
+- Output rows: 1,439,680.
+- Dropped rows: 0.
+- `taxonomy_source`: `event_id_proxy`: 1,439,680.
+- `domain`: `unknown`: 1,439,680.
+- `category`: `unknown`: 1,439,680.
+- Unknown taxonomy rows: 1,439,680.
+- Ambiguous taxonomy rows: 0.
+- Missing `event_family_id` rows: 0.
+- Audit groups: 1.
+
+Current limitation:
+
+- The current taxonomy is only a conservative event-family proxy and unknown-domain placeholder. Do not claim domain-level findings or rely on event-family clustering as final until explicit mapping coverage is audited and expanded.
