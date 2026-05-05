@@ -43,6 +43,14 @@ Audit the full Kalshi raw directory schemas without hashing every raw file:
 uv run python scripts/audit_kalshi_raw.py --kalshi-path data/raw/becker_prediction_market_analysis/data/kalshi
 ```
 
+Build cleaned interim Kalshi tables:
+
+```bash
+uv run python scripts/build_interim_kalshi.py \
+  --raw-kalshi-path data/raw/becker_prediction_market_analysis/data/kalshi \
+  --output-dir data/interim/kalshi
+```
+
 Expected workflow once those phases exist:
 
 ```bash
@@ -71,7 +79,7 @@ Current schema notes are in `docs/data_sources/becker_kalshi_schema.md`.
 ```text
 configs/                  YAML configs for data, sampling, models, backtests, figures
 data/raw/                 immutable source data; never modify in place
-data/interim/             cleaned normalized tables
+data/interim/             cleaned normalized tables, including Kalshi interim outputs
 data/processed/           contract-horizon panels and modeling datasets
 data/artifacts/           cached model outputs, metrics, run results
 src/predmkt/              research package

@@ -109,6 +109,46 @@ Optional canonical fields:
 
 - `volume`: quantity or volume for VWAP and liquidity diagnostics.
 
+## Interim Cleaning Outputs
+
+The Phase 2 interim builder command:
+
+```bash
+uv run python scripts/build_interim_kalshi.py \
+  --raw-kalshi-path data/raw/becker_prediction_market_analysis/data/kalshi \
+  --output-dir data/interim/kalshi
+```
+
+Writes:
+
+- `data/interim/kalshi/contracts.parquet`
+- `data/interim/kalshi/price_observations.parquet`
+- `data/interim/kalshi/contract_exclusion_summary.parquet`
+- `data/interim/kalshi/price_observation_exclusion_summary.parquet`
+- `data/interim/kalshi/summary.json`
+
+Observed output counts from the initial full run:
+
+- Contracts raw rows: 7,682,445.
+- Cleaned resolved binary contracts: 7,314,375.
+- Excluded contract rows: 368,070.
+- Price observation raw rows: 72,134,741.
+- Cleaned price observations: 67,724,365.
+- Excluded price observations: 4,410,376.
+
+Observed contract exclusion counts:
+
+- `status_not_finalized`: 361,541.
+- `missing_result`: 6,529.
+
+Observed price-observation exclusion counts:
+
+- `contract_not_resolved_binary`: 4,373,335.
+- `invalid_yes_price`: 37,027.
+- `invalid_no_price`: 14.
+
+The cleaned contract output has one row per `contract_id`; the initial invariant check found zero duplicate contract IDs and zero missing `resolution_ts` values.
+
 ## Methodological Notes
 
 - `data/raw/` is immutable. Any cleaning, normalization, or schema mapping must write to `data/interim/` or later-stage directories.
@@ -117,3 +157,6 @@ Optional canonical fields:
 - Becker's Kalshi files are Parquet. Do not copy or rewrite them during schema inspection.
 - The current market schema uses `close_time` as the provisional resolution timestamp candidate. Later cleaning must verify whether this is the correct outcome-knowledge timestamp for each contract family.
 - `_fetched_at` is stored as `timestamp[ns]` without a timezone in the inspected Parquet schema. It should be treated as source-fetch metadata, not a forecast timestamp, unless later documentation justifies a timezone interpretation.
+- The interim cleaning pipeline writes one row per resolved binary contract to `data/interim/kalshi/contracts.parquet`.
+- The interim `price_observations.parquet` remains a source-observation table, not the confirmatory analysis table. Contract-horizon sampling happens later.
+- The interim builder filters price observations to contracts identified in the cleaned resolved-binary contract table. This is an inclusion filter for the resolved-contract study population, not a contract-horizon analysis row definition.
