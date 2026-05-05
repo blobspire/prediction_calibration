@@ -22,9 +22,10 @@ python -m pytest
 
 ## First Workflow Commands
 
-The current repository supports raw schema inspection, Kalshi interim cleaning, and
-contract-horizon snapshot construction. Model fitting and metric scripts will be added
-in later phases.
+The current repository supports raw schema inspection, Kalshi interim cleaning,
+contract-horizon snapshot construction, taxonomy enrichment, feature-panel
+construction, and raw baseline forecast metrics. Recalibration models,
+walk-forward evaluation, and edge simulation will be added in later phases.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -105,6 +106,32 @@ Current domain/category values are inherited from the taxonomy panel and are
 `unknown` unless explicit taxonomy rules have been added. The feature panel
 includes flags for unknown taxonomy, inferred event-family IDs, missing listing
 timestamps, missing momentum/volatility windows, and missing liquidity inputs.
+
+Evaluate raw Kalshi probabilities:
+
+```bash
+uv run python scripts/evaluate_raw.py --config configs/metrics.yaml
+```
+
+The metrics config evaluates `raw_probability` against `observed_outcome` with
+equal-contract aggregation as the confirmatory default. It documents the
+`0.000001` log-loss clipping epsilon, reliability-bin settings, calibration
+intercept/slope fit settings, and the optional disabled trade-weighted robustness
+mode. The script writes:
+
+```text
+data/artifacts/raw_baseline/metrics_overall.parquet
+data/artifacts/raw_baseline/metrics_by_group.parquet
+data/artifacts/raw_baseline/reliability_bins.parquet
+data/artifacts/raw_baseline/calibration_fits.parquet
+data/artifacts/raw_baseline/missing_feature_notes.parquet
+data/artifacts/raw_baseline/summary.json
+```
+
+Phase 4 scores raw market probabilities only. It does not fit recalibrators and
+does not perform walk-forward model evaluation. Domain/category grouped rows are
+currently taxonomy placeholders because the public Becker/Kalshi fields still
+map to `unknown` unless explicit taxonomy rules are added.
 
 Expected workflow once later phases exist:
 

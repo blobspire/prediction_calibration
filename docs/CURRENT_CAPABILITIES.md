@@ -35,7 +35,7 @@ Status labels:
 | Phase 3 contract-horizon snapshots | complete | Config-driven full horizon grid, last-trade/VWAP snapshots, no-look-ahead validation, canonical panel schema. | Snapshot uses trade proxy only; no historical quotes/order book. |
 | Conservative taxonomy layer | partial | Adds `domain`, `category`, `event_family_id`, taxonomy audit, and explicit rule config. | All domain/category values are `unknown`; event family is `event_id` proxy. |
 | Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Domain/category placeholders; liquidity is public trade proxy only; momentum/volatility use transaction prices. |
-| Phase 4 baseline forecast metrics | not implemented | Metrics package is only a placeholder. | Need Brier, log loss, ECE, slope/intercept, reliability bins, aggregation rules, `evaluate_raw.py`. |
+| Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs remain taxonomy placeholders until coverage improves. |
 | Phase 5 walk-forward validation | not implemented | Validation package is only a placeholder. | Need forecast-time splits, expanding/rolling windows, event-family leakage checks. |
 | Phase 6 recalibrators | not implemented | Calibration package is only a placeholder. | Need raw/logistic/beta/isotonic interfaces and tests. |
 | Phase 7 walk-forward evaluation | not implemented | No fold-level model evaluation. | Need identical test folds, saved fold artifacts, config hashes, leakage checks. |
@@ -66,6 +66,7 @@ Build processed snapshot, taxonomy, and feature panels:
 uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
 uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
 uv run python scripts/build_feature_panel.py --config configs/features.yaml
+uv run python scripts/evaluate_raw.py --config configs/metrics.yaml
 ```
 
 Run tests:
@@ -74,7 +75,9 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `.venv/bin/python -m pytest` and passed `30 passed`.
+Latest local metric verification used `.venv/bin/python -m pytest tests/test_metrics.py` and
+passed `7 passed`; the full raw baseline evaluation also completed on 1,439,680
+modeling rows.
 `ruff` and `mypy` are declared in `pyproject.toml` but were not installed in the current local `.venv` when last attempted.
 
 ## Config Registry
@@ -84,6 +87,7 @@ Latest local verification used `.venv/bin/python -m pytest` and passed `30 passe
 | `configs/sampling.yaml` | complete | Snapshot inputs/outputs, horizon grid, `close = resolution_ts - 1 minute`, `7d` max staleness, `6h` VWAP window, snapshot method preference. |
 | `configs/taxonomy.yaml` | partial | Conservative taxonomy enrichment, explicit event-id mapping rules, default unknown domain/category, event-id event-family proxy. |
 | `configs/features.yaml` | partial | Modeling feature inputs/outputs, probability epsilon, 24h momentum/volatility windows, 7d liquidity window, missing-feature policy. |
+| `configs/metrics.yaml` | complete | Raw baseline metric input/output paths, log-loss clipping epsilon, reliability bins, calibration fit settings, groupings, and equal-contract primary aggregation. |
 | `configs/models.yaml` | not implemented | Needed for model/recalibrator settings. |
 | `configs/validation.yaml` | not implemented | Needed for walk-forward split settings. |
 | `configs/backtest.yaml` | not implemented | Needed for edge simulation assumptions. |
@@ -116,6 +120,12 @@ Processed outputs:
 - `data/processed/contract_horizon_taxonomy_summary.json`
 - `data/processed/modeling_panel.parquet`: 1,439,680 rows.
 - `data/processed/modeling_panel_summary.json`
+- `data/artifacts/raw_baseline/metrics_overall.parquet`
+- `data/artifacts/raw_baseline/metrics_by_group.parquet`
+- `data/artifacts/raw_baseline/reliability_bins.parquet`
+- `data/artifacts/raw_baseline/calibration_fits.parquet`
+- `data/artifacts/raw_baseline/missing_feature_notes.parquet`
+- `data/artifacts/raw_baseline/summary.json`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -218,11 +228,31 @@ Limitations:
 - Liquidity lacks order-book depth, spreads, and executable quote data.
 - Momentum/volatility use transaction prices rather than quote midpoints.
 
+### `src/predmkt/metrics/`
+
+Status: complete for Phase 4 raw baseline evaluation.
+
+Capabilities:
+
+- Computes Brier score and log loss with documented probability clipping.
+- Computes fixed-width reliability bins and ECE while retaining empty and sparse bins.
+- Fits calibration intercept/slope using a dependency-free logistic IRLS routine.
+- Evaluates raw probabilities from `data/processed/modeling_panel.parquet`.
+- Writes overall, grouped, reliability, calibration, missing-note, and summary artifacts.
+- Uses equal-contract aggregation as the confirmatory default and records aggregation mode in outputs.
+- Writes equal-event-family diagnostics using the current event-family proxy.
+- Allows trade-weighted robustness only when explicitly enabled in metrics config.
+
+Limitations:
+
+- Phase 4 evaluates raw probabilities only; recalibrators and walk-forward model evaluation are not implemented here.
+- Domain/category grouped outputs are not domain-level findings while taxonomy coverage is `unknown`.
+- Liquidity/staleness groups use public feature-panel proxies, not executable quote or order-book data.
+
 ### Placeholder Packages
 
 Status: not implemented.
 
-- `src/predmkt/metrics/`
 - `src/predmkt/validation/`
 - `src/predmkt/calibration/`
 - `src/predmkt/edge/`
@@ -244,11 +274,13 @@ Implemented tests:
 - Snapshot default horizons, config loading, no-look-ahead, duplicate-key rejection, stale tolerance, canonical columns.
 - Taxonomy default behavior, explicit mapping override, no row drops, config loading.
 - Feature config loading, no-look-ahead construction, cumulative volume/trade count, momentum/volatility windows, validation failure.
+- Metric regression tests with known Brier/log-loss/ECE values.
+- Reliability empty/sparse bin tests.
+- Calibration fit and degenerate-group tests.
+- Tests proving primary aggregation is not trade-weighted by default and trade weighting is opt-in.
 
 Missing high-priority tests:
 
-- Metric regression tests with known Brier/log-loss/ECE values.
-- Equal-contract/equal-event-family aggregation tests.
 - Walk-forward split integrity tests.
 - Event-family leakage tests using final taxonomy.
 - Recalibrator fit/predict interface tests.
@@ -259,7 +291,6 @@ Missing high-priority tests:
 
 Cannot yet claim:
 
-- Raw market calibration performance.
 - Domain-level calibration findings.
 - Walk-forward out-of-sample improvements.
 - Recalibration gains.
@@ -271,13 +302,12 @@ Required next build steps:
 
 1. Audit Phase 2 cleaning assumptions, especially whether `close_time` is acceptable as `resolution_ts`.
 2. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
-3. Implement Phase 4 baseline metrics with equal-contract aggregation and known-value tests.
-4. Implement Phase 5 walk-forward splits and event-family leakage checks before model fitting.
-5. Implement recalibrator interfaces and simple baselines only after metrics and splits are stable.
-6. Add edge simulation only after out-of-sample calibrated probabilities exist.
+3. Implement Phase 5 walk-forward splits and event-family leakage checks before model fitting.
+4. Implement recalibrator interfaces and simple baselines only after metrics and splits are stable.
+5. Add edge simulation only after out-of-sample calibrated probabilities exist.
 
 ## Current Phase Recommendation
 
-Next recommended task: Phase 4 baseline forecast metrics, but only for overall and horizon-level reporting unless taxonomy coverage is expanded first.
+Next recommended task: Phase 5 walk-forward splits and leakage checks, but only after explicitly accepting that initial domain/category outputs remain taxonomy placeholders or expanding taxonomy coverage.
 
-Phase 4 should start from `data/processed/modeling_panel.parquet`, use `raw_probability` and `observed_outcome`, preserve one row per `contract_id x horizon_name`, and make aggregation explicitly equal-contract by default. Domain/category slicing should remain disabled or labeled exploratory until taxonomy rules are added and audited.
+Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.

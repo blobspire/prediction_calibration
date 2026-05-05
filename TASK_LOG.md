@@ -25,6 +25,7 @@ None.
 | 2026-05-05 | Conservative Kalshi taxonomy layer | `README.md`, `configs/README.md`, `configs/taxonomy.yaml`, `docs/data_sources/becker_kalshi_schema.md`, `scripts/README.md`, `scripts/build_taxonomy_panel.py`, `src/predmkt/taxonomy/__init__.py`, `src/predmkt/taxonomy/kalshi.py`, `tests/test_taxonomy.py` | `.venv/bin/python -m pytest`; `.venv/bin/python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml`; `validate_taxonomy_panel` on the full output | Added a reproducible taxonomy enrichment layer without title inference or row filtering. The default rule preserves `event_id`, sets `event_family_id = event_id` as a conservative proxy, falls back to `contract_id` when `event_id` is missing, and assigns `domain = unknown`, `category = unknown`, `taxonomy_source = event_id_proxy`, `taxonomy_confidence = low`. Explicit exact `event_id` mappings in `configs/taxonomy.yaml` can override defaults. Full output rows: 1,439,680; dropped rows: 0; missing `event_family_id`: 0; all current rows remain `domain/category = unknown` because no explicit mapping rules are defined yet. Audit written to `data/processed/contract_horizon_taxonomy_audit.parquet`. Limitation: do not claim domain-level findings or treat the event-family proxy as final until mapping coverage is audited and expanded. |
 | 2026-05-05 | Forecast feature panel MVP | `README.md`, `configs/README.md`, `configs/features.yaml`, `docs/data_sources/becker_kalshi_schema.md`, `scripts/README.md`, `scripts/build_feature_panel.py`, `src/predmkt/features/__init__.py`, `src/predmkt/features/kalshi.py`, `tests/test_features.py` | `.venv/bin/python -m pytest`; `.venv/bin/python scripts/build_feature_panel.py --config configs/features.yaml --limit-rows 10000 --output data/processed/modeling_panel_smoke.parquet --summary data/processed/modeling_panel_smoke_summary.json`; `.venv/bin/python scripts/build_feature_panel.py --config configs/features.yaml`; `validate_feature_panel` on smoke and full outputs | Added a config-driven modeling feature panel using only cleaned public Becker/Kalshi data and trade observations satisfying `source_ts <= forecast_ts`. Features include raw/clipped/logit probability, horizon fields, taxonomy fields, forecast/listing month, price staleness, cumulative volume/trade count to forecast, 24h pre-forecast momentum and volatility, 7d liquidity window counts/volume, and `log(1 + cumulative_volume)` public liquidity proxy. Full output rows: 1,439,680; duplicate rows: 0; no-look-ahead validation passed. Missing/inferred counts: domain unknown 1,439,680; category unknown 1,439,680; event-family inferred 1,439,680; event-family missing 0; listing timestamp missing 0; raw probability missing 0; liquidity missing 0; momentum/volatility missing 650,115. Limitations: domain/category remain taxonomy placeholders, event-family remains the `event_id` proxy, liquidity lacks order-book depth, and momentum/volatility use transaction prices rather than executable quotes. |
 | 2026-05-05 | Current capability registry | `CURRENT_CAPABILITIES.md`, `docs/CURRENT_CAPABILITIES.md`, `docs/README.md`, `TASK_LOG.md` | Documentation-only; no tests run. | Added a concise source-of-truth capability registry with statuses for every roadmap phase and major package area. It records current commands, configs, local artifacts, implemented modules, missing tests, research-grade gaps, and the recommended next task. Root `CURRENT_CAPABILITIES.md` points to `docs/CURRENT_CAPABILITIES.md`, which is the canonical registry required by `AGENTS.md`. |
+| 2026-05-05 | Phase 4 raw baseline forecast metrics | `README.md`, `configs/README.md`, `configs/metrics.yaml`, `docs/CURRENT_CAPABILITIES.md`, `scripts/README.md`, `scripts/evaluate_raw.py`, `src/predmkt/metrics/__init__.py`, `src/predmkt/metrics/calibration.py`, `src/predmkt/metrics/evaluation.py`, `src/predmkt/metrics/reliability.py`, `src/predmkt/metrics/scoring.py`, `tests/test_metrics.py`, `TASK_LOG.md` | `.venv/bin/python -m pytest tests/test_metrics.py`; `.venv/bin/python scripts/evaluate_raw.py --config configs/metrics.yaml --limit-rows 10000 --artifact-dir data/artifacts/raw_baseline_smoke`; `.venv/bin/python scripts/evaluate_raw.py --config configs/metrics.yaml` | Implemented config-driven raw baseline metrics for `data/processed/modeling_panel.parquet`. Metrics include Brier score, log loss with `0.000001` clipping epsilon, ECE with fixed reliability bins and sparse-bin flags, and logistic calibration intercept/slope fit by dependency-free IRLS. Primary aggregation is equal-contract; equal-event-family is written as a secondary diagnostic; trade-weighted robustness is disabled unless explicitly enabled in config. Full run scored 1,439,680 rows with no dropped missing required rows and wrote artifacts under `data/artifacts/raw_baseline/`. Domain/category groups are emitted but remain non-confirmatory taxonomy placeholders because current values are `unknown`. |
 
 ## Blockers
 
@@ -42,14 +43,11 @@ None.
 
 ## Next candidate tasks
 
-1. Phase 0 — Repository bootstrap.
-2. Phase 1 — Inspect source data and define schemas.
-3. Phase 2 — Raw-to-cleaned Kalshi data pipeline.
-4. Phase 3 — Contract-horizon snapshot panel.
-5. Phase 4 — Baseline forecast metrics.
-6. Phase 5 — Walk-forward splitter and leakage checks.
-7. Phase 6 — Recalibrator registry and simple baselines.
-8. Phase 7 — Walk-forward model evaluation.
-9. Phase 8 — Edge simulation MVP.
-10. Phase 9 — Publication figures and tables.
-11. Phase 10 — Robustness and paper replication command.
+1. Audit Phase 2 cleaning assumptions, especially whether `close_time` is acceptable as `resolution_ts`.
+2. Expand taxonomy coverage or explicitly keep initial claims to overall/horizon/liquidity/staleness slices.
+3. Phase 5 — Walk-forward splitter and leakage checks.
+4. Phase 6 — Recalibrator registry and simple baselines.
+5. Phase 7 — Walk-forward model evaluation.
+6. Phase 8 — Edge simulation MVP.
+7. Phase 9 — Publication figures and tables.
+8. Phase 10 — Robustness and paper replication command.

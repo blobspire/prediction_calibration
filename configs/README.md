@@ -9,3 +9,4 @@ Current configs:
 - `sampling.yaml`: contract-horizon snapshot inputs, outputs, horizon grid, stale-price tolerance, VWAP window, and snapshot method preference.
 - `taxonomy.yaml`: conservative taxonomy enrichment inputs, outputs, event-family proxy, explicit event-id mapping rules, and unknown-domain defaults.
 - `features.yaml`: modeling-panel inputs, outputs, probability clipping epsilon, momentum/volatility windows, liquidity window, and missing-feature policies.
+- `metrics.yaml`: raw-probability baseline metrics, log-loss clipping epsilon, reliability bins, calibration fit settings, groupings, and explicit equal-contract primary aggregation.
