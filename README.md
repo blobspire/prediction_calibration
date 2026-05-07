@@ -24,8 +24,9 @@ python -m pytest
 
 The current repository supports raw schema inspection, Kalshi interim cleaning,
 contract-horizon snapshot construction, taxonomy enrichment, feature-panel
-construction, and raw baseline forecast metrics. Recalibration models,
-walk-forward evaluation, and edge simulation will be added in later phases.
+construction, raw baseline forecast metrics, and strict walk-forward split
+construction. Recalibration models, walk-forward model evaluation, and edge
+simulation will be added in later phases.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -205,6 +206,30 @@ calibration-gap heatmap, balanced-panel comparison, orientation sanity check,
 close timestamp semantics, methodology-refinement comparison, and a summary
 dashboard. These are slide-ready raw-baseline visuals, not final
 walk-forward/recalibrated-model results.
+
+Build strict walk-forward validation splits:
+
+```bash
+uv run python scripts/build_walkforward_splits.py --config configs/validation.yaml
+```
+
+The validation config uses monthly expanding windows split by `forecast_ts`, not
+row order or resolution time. The default train window starts at the earliest
+available forecast timestamp, uses a one-month validation block immediately
+before each one-month test block, starts testing in `2024-01`, and excludes an
+incomplete final test month. Event-family leakage checks use `event_family_id`
+when present and fall back to `event_id` for raw snapshot panels.
+
+The script writes:
+
+```text
+data/processed/walkforward_splits.parquet
+data/processed/walkforward_split_integrity.parquet
+data/processed/walkforward_split_summary.json
+```
+
+The current event-family identifier is still a conservative `event_id` proxy for
+most rows, so leakage diagnostics are useful but not a final family taxonomy.
 
 Expected workflow once later phases exist:
 

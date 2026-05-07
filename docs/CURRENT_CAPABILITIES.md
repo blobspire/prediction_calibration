@@ -1,6 +1,6 @@
 # Current Capabilities
 
-Last updated: 2026-05-05.
+Last updated: 2026-05-06.
 
 This is the project capability registry. It tracks what the codebase can currently do,
 what artifacts exist locally, what is only partial or placeholder, and what must be
@@ -36,7 +36,7 @@ Status labels:
 | Conservative taxonomy layer | partial | Adds `domain`, `category`, `event_family_id`, taxonomy audit, and explicit rule config. | All domain/category values are `unknown`; event family is `event_id` proxy. |
 | Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Domain/category placeholders; liquidity is public trade proxy only; momentum/volatility use transaction prices. |
 | Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs remain taxonomy placeholders until coverage improves. |
-| Phase 5 walk-forward validation | not implemented | Validation package is only a placeholder. | Need forecast-time splits, expanding/rolling windows, event-family leakage checks. |
+| Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Later model evaluation must decide whether to filter or group around flagged event-family overlaps; event families remain conservative proxies. |
 | Phase 6 recalibrators | not implemented | Calibration package is only a placeholder. | Need raw/logistic/beta/isotonic interfaces and tests. |
 | Phase 7 walk-forward evaluation | not implemented | No fold-level model evaluation. | Need identical test folds, saved fold artifacts, config hashes, leakage checks. |
 | Phase 8 edge simulation | not implemented | Edge package is only a placeholder. | Need fees, slippage, liquidity/staleness filters, lockup assumptions, conservative labels. |
@@ -70,6 +70,7 @@ uv run python scripts/evaluate_raw.py --config configs/metrics.yaml
 uv run python scripts/plot_raw_baseline.py --config configs/figures.yaml
 uv run python scripts/audit_raw_baseline.py --config configs/raw_baseline_audit.yaml
 uv run python scripts/make_presentation_figures.py --config configs/presentation.yaml
+uv run python scripts/build_walkforward_splits.py --config configs/validation.yaml
 ```
 
 Run tests:
@@ -78,10 +79,9 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `44 passed`.
-`uv run ruff check .` also passes. The full raw baseline evaluation completed
-on 554,249 modeling rows, and the near-close audit completed on the same
-panel.
+Latest local verification used `uv run pytest` and passed `54 passed`.
+`uv run ruff check .` also passes. The current walk-forward splitter completed
+on 695,940 modeling-panel rows.
 
 ## Config Registry
 
@@ -95,7 +95,7 @@ panel.
 | `configs/raw_baseline_audit.yaml` | partial | Diagnostics for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics. |
 | `configs/presentation.yaml` | partial | Slide-ready raw-baseline figure inputs, presentation output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values. |
 | `configs/models.yaml` | not implemented | Needed for model/recalibrator settings. |
-| `configs/validation.yaml` | not implemented | Needed for walk-forward split settings. |
+| `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
 | `configs/backtest.yaml` | not implemented | Needed for edge simulation assumptions. |
 
 ## Local Data Artifacts
@@ -151,6 +151,9 @@ Processed outputs:
 - `data/artifacts/presentation/figures/presentation_*.png`
 - `data/artifacts/presentation/figures/presentation_*.svg`
 - `data/artifacts/presentation/figures/presentation_figure_summary.json`
+- `data/processed/walkforward_splits.parquet`: 4,094,883 fold/split assignment rows from 22 monthly expanding folds.
+- `data/processed/walkforward_split_integrity.parquet`
+- `data/processed/walkforward_split_summary.json`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -327,11 +330,31 @@ Limitations:
 - Reports are diagnostic only and do not revise the baseline methodology.
 - No manuscript-ready tables or full raw-vs-recalibrated report exists yet.
 
+### `src/predmkt/validation/`
+
+Status: complete for Phase 5 split construction and integrity diagnostics.
+
+Capabilities:
+
+- Builds monthly expanding walk-forward folds from `forecast_ts`.
+- Uses one-month validation windows immediately before one-month test windows by default.
+- Starts the default test sequence at `2024-01` and excludes incomplete final test months.
+- Writes row-level split assignments with `fold_id`, `split`, `row_id`, `contract_id`, `horizon`, `forecast_ts`, and `event_family_id`.
+- Validates train timestamps precede validation timestamps and validation timestamps precede test timestamps.
+- Validates no row appears in multiple splits within the same fold.
+- Detects strict event-family overlap across train/validation/test splits.
+- Falls back from `event_family_id` to `event_id` when operating on raw snapshot panels.
+
+Limitations:
+
+- The splitter does not fit recalibrators or evaluate models.
+- Strict event-family overlaps are reported, not automatically filtered.
+- Event-family identifiers are still conservative taxonomy proxies until family mapping coverage improves.
+
 ### Placeholder Packages
 
 Status: not implemented.
 
-- `src/predmkt/validation/`
 - `src/predmkt/calibration/`
 - `src/predmkt/edge/`
 
@@ -357,11 +380,14 @@ Implemented tests:
 - Raw-baseline plot config loading and PNG/SVG output smoke tests.
 - Raw-baseline audit config loading and synthetic staleness/method/balanced/orientation tests.
 - Presentation figure config loading and PNG output smoke tests.
+- Walk-forward split config loading, expanding monthly fold construction,
+  timestamp ordering, deterministic assignment independent of input order,
+  event-family leakage detection, no-leakage cases, event-id fallback, missing
+  timestamp failure, and script/config artifact smoke tests.
 
 Missing high-priority tests:
 
-- Walk-forward split integrity tests.
-- Event-family leakage tests using final taxonomy.
+- Event-family leakage tests using final expanded taxonomy.
 - Recalibrator fit/predict interface tests.
 - Edge simulation fee/slippage/lockup invariant tests.
 - End-to-end small pipeline test.
@@ -374,19 +400,21 @@ Cannot yet claim:
 - Walk-forward out-of-sample improvements.
 - Recalibration gains.
 - Conservative tradable edge.
-- Event-family leakage safety.
+- Event-family leakage safety under a final expanded taxonomy.
 - Publication-ready figures or tables beyond raw-baseline diagnostic PNG/SVGs.
 
 Required next build steps:
 
 1. Audit Phase 2 cleaning assumptions, especially whether `close_time` is acceptable as `resolution_ts`.
 2. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
-3. Implement Phase 5 walk-forward splits and event-family leakage checks before model fitting.
+3. Decide Phase 7 policy for strict event-family overlaps before fitting models.
 4. Implement recalibrator interfaces and simple baselines only after metrics and splits are stable.
 5. Add edge simulation only after out-of-sample calibrated probabilities exist.
 
 ## Current Phase Recommendation
 
-Next recommended task: Phase 5 walk-forward splits and leakage checks, but only after explicitly accepting that initial domain/category outputs remain taxonomy placeholders or expanding taxonomy coverage.
+Next recommended task: Phase 6 recalibrator registry and simple baselines, with a
+parallel decision on whether Phase 7 should drop, group, or report folds with
+strict event-family overlaps.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.
