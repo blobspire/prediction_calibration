@@ -1,5 +1,12 @@
 """Manuscript-ready tables and summaries."""
 
+from predmkt.reports.final_audit import (
+    FinalAuditConfig,
+    FinalAuditError,
+    FinalAuditSummary,
+    build_final_audit,
+    load_final_audit_config,
+)
 from predmkt.reports.manuscript import (
     ManuscriptTableSummary,
     ReportingConfig,
@@ -21,6 +28,9 @@ from predmkt.reports.robustness import (
 )
 
 __all__ = [
+    "FinalAuditConfig",
+    "FinalAuditError",
+    "FinalAuditSummary",
     "ManuscriptTableSummary",
     "RawBaselineAuditConfig",
     "RawBaselineAuditSummary",
@@ -28,7 +38,9 @@ __all__ = [
     "ReportingError",
     "RobustnessConfig",
     "RobustnessSummary",
+    "build_final_audit",
     "build_raw_baseline_audit",
+    "load_final_audit_config",
     "load_raw_baseline_audit_config",
     "load_robustness_config",
     "load_reporting_config",

@@ -27,7 +27,7 @@ contract-horizon snapshot construction, taxonomy enrichment, feature-panel
 construction, raw baseline forecast metrics, and strict walk-forward split
 construction. The codebase also includes reusable simple recalibrators.
 Walk-forward raw-vs-recalibrated model evaluation is available for simple
-calibrators. Edge simulation will be added in a later phase.
+calibrators, with conservative simulated edge screens and reporting utilities.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -63,7 +63,7 @@ uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
 ```
 
 The sampling config defines the default horizon grid
-`30d,14d,7d,3d,1d,6h,1h,close`, `close = resolution_ts - 1 minute`,
+`30d,14d,7d,3d,1d,6h,1h,15m,close`, `close = resolution_ts - 1 minute`,
 and a horizon-specific snapshot policy. The current policy uses last trade as
 the primary snapshot, retains horizon-specific VWAP fields for diagnostics, and
 tightens near-close stale-price rules:
@@ -74,6 +74,7 @@ tightens near-close stale-price rules:
 1d:         1h VWAP window, 1d max staleness
 6h:         15m VWAP window, 6h max staleness
 1h:         5m VWAP window, 1h max staleness
+15m:        5m VWAP window, 15m max staleness
 close:      last-trade primary, 5m VWAP window, 5m max staleness
 ```
 
@@ -393,6 +394,28 @@ data/processed/replication_small/
 data/artifacts/replication/small_sample/
 paper/replication/small_sample/
 ```
+
+Audit the saved Phase 2-10 artifact chain and final data semantics:
+
+```bash
+uv run python scripts/audit_final_artifacts.py --config configs/final_audit.yaml
+```
+
+The final audit is reporting-only. It does not rebuild data, refit models, or
+change methodology. It writes:
+
+```text
+data/artifacts/final_audit/artifact_inventory.parquet
+data/artifacts/final_audit/audit_checks.parquet
+data/artifacts/final_audit/phase_status.parquet
+data/artifacts/final_audit/summary.json
+docs/audits/final_data_semantics.md
+```
+
+The current expected verdict is `PARTIAL`: hard invariants pass, but
+`resolution_ts` / `close_time` semantics, placeholder taxonomy, event-family
+proxying, simulated edge outputs, missing quote depth, and missing clustered
+uncertainty remain final-deployment blockers tracked in `ROADMAP.md`.
 
 Use the tests to verify the package imports and schema utilities:
 

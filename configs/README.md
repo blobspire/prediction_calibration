@@ -19,3 +19,4 @@ Current configs:
 - `reporting.yaml`: manuscript figure/table artifact inputs, `paper/` output directories, horizon/model ordering, figure/table formats, metric scope, and explicit full-vs-smoke run label.
 - `robustness.yaml`: non-confirmatory robustness diagnostics for snapshot-method slices, liquidity filters, domain-exclusion availability, and friction-assumption sensitivity. Outputs are separate from primary artifacts.
 - `replication_small.yaml`: deterministic small-sample paper replication path starting from cleaned interim Kalshi tables and writing under replication-specific processed/artifact/paper directories.
+- `final_audit.yaml`: Phase 11 saved-artifact and data-semantics audit inputs, expected horizons/models, hard-fail versus partial severity rules, known partial limitations, and output paths for final audit reports.

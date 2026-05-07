@@ -21,3 +21,4 @@ Current data-build scripts:
 - `make_tables.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready CSV, Markdown, and LaTeX tables under `paper/tables/`.
 - `run_robustness.py`: saved full-run artifacts to separately labeled non-confirmatory robustness tables for snapshot methods, liquidity filters, domain-exclusion availability, and friction assumptions.
 - `run_small_sample_pipeline.py`: deterministic small-sample end-to-end replication command path from cleaned interim data through paper figures/tables; supports `--dry-run` for command-order verification.
+- `audit_final_artifacts.py`: Phase 11 reporting-only audit of saved Phase 2-10 artifacts and data semantics, writing PASS/PARTIAL/FAIL checks under `data/artifacts/final_audit/` and `docs/audits/`.

@@ -6,3 +6,4 @@ Current key docs:
 
 - `CURRENT_CAPABILITIES.md`: source-of-truth registry for implemented, partial, blocked, and missing project capabilities.
 - `data_sources/becker_kalshi_schema.md`: Becker/Kalshi schema, cleaning, snapshot, taxonomy, and feature notes.
+- `audits/final_data_semantics.md`: Phase 11 saved-artifact and data-semantics audit report.

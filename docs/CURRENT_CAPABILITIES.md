@@ -40,9 +40,10 @@ Status labels:
 | Phase 6 recalibrators | complete | Common fit/predict interface, raw/Platt/beta/isotonic calibrators, model config, registry, bounded predictions, and synthetic tests. | Full walk-forward model evaluation is Phase 7. |
 | Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Clustered inference, hierarchical models, and full-scale audited edge interpretation remain later work. |
 | Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
-| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need scientific audit and clustered uncertainty. |
+| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need clustered uncertainty and Phase 12-17 final gates. |
 | Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions are not substantive while taxonomy is all `unknown`. |
-| Final deployment readiness | partial | Phase 0-10 implementation is a working v1 research pipeline with full local artifacts and tests passing. | Phases 11-17 in `ROADMAP.md` remain required before final publishable claims. |
+| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 0 hard failures. | Phase 12-17 blockers remain: taxonomy hardening, clustered uncertainty, expanded robustness, and edge executability. |
+| Final deployment readiness | partial | Phase 0-11 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, and tests passing. | Phases 12-17 in `ROADMAP.md` remain required before final publishable claims. |
 
 ## Current Commands
 
@@ -78,6 +79,7 @@ uv run python scripts/make_figures.py --config configs/reporting.yaml
 uv run python scripts/make_tables.py --config configs/reporting.yaml
 uv run python scripts/run_robustness.py --config configs/robustness.yaml
 uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml
+uv run python scripts/audit_final_artifacts.py --config configs/final_audit.yaml
 ```
 
 Reusable recalibrators are available through the Python registry:
@@ -95,12 +97,12 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `85 passed`.
+Latest local verification used `uv run pytest` and passed `93 passed`.
 `uv run ruff check .` also passes. Targeted `mypy` checks pass for
 `src/predmkt/edge`, `src/predmkt/plots/manuscript.py`, and
 `src/predmkt/reports/manuscript.py`. Full walk-forward, edge-simulation,
-manuscript, robustness, and small-sample replication artifacts now exist under
-their configured output roots.
+manuscript, robustness, small-sample replication, and final-audit artifacts now
+exist under their configured output roots.
 
 ## Config Registry
 
@@ -119,6 +121,7 @@ their configured output roots.
 | `configs/reporting.yaml` | complete | Manuscript figure/table input artifact dirs, `paper/` output dirs, model/horizon order, figure/table formats, metric scope, and explicit full-vs-smoke run label. |
 | `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, explicit unavailable-domain handling, friction scenarios, and small snapshot variants. |
 | `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs, limits, run label, and separate processed/artifact/paper output roots. |
+| `configs/final_audit.yaml` | complete | Phase 11 saved-artifact and data-semantics audit inputs, expected horizons/models, full-run labels, hard-fail/partial severity rules, known partial limitations, and audit output paths. |
 
 ## Local Data Artifacts
 
@@ -220,6 +223,13 @@ Processed outputs:
 - `paper/replication/small_sample/figures/manuscript_*.{png,svg,pdf}`
 - `paper/replication/small_sample/tables/table_manifest.json`
 - `paper/replication/small_sample/tables/*.{csv,md,tex}`
+- `data/artifacts/final_audit/artifact_inventory.parquet`
+- `data/artifacts/final_audit/audit_checks.parquet`: current full audit has
+  61 checks, 56 PASS, 5 PARTIAL, and 0 FAIL.
+- `data/artifacts/final_audit/phase_status.parquet`
+- `data/artifacts/final_audit/summary.json`: current overall status is
+  `PARTIAL`.
+- `docs/audits/final_data_semantics.md`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -265,7 +275,7 @@ Status: complete for Phase 3 snapshot construction.
 
 Capabilities:
 
-- Config-driven horizon grid: `30d,14d,7d,3d,1d,6h,1h,close`.
+- Config-driven horizon grid: `30d,14d,7d,3d,1d,6h,1h,15m,close`.
 - Defines `close` as one minute before `resolution_ts`.
 - Builds one row per `contract_id x horizon_bucket`.
 - Uses only observations with `source_ts <= forecast_ts`.
@@ -401,6 +411,15 @@ Capabilities:
 - Generates non-confirmatory robustness tables for snapshot-method slices,
   liquidity filters, explicit domain-exclusion availability, and friction
   assumptions.
+- Runs the Phase 11 saved-artifact audit over interim, processed, split,
+  walk-forward, edge, robustness, and manuscript artifacts.
+- Writes `artifact_inventory.parquet`, `audit_checks.parquet`,
+  `phase_status.parquet`, `summary.json`, and
+  `docs/audits/final_data_semantics.md`.
+- Validates hard invariants for no-look-ahead snapshots/features, duplicate
+  contract-horizon keys, split ordering, prediction/panel key consistency,
+  equal-contract aggregation, YES-only simulated edge screens, and full-artifact
+  manuscript manifests.
 
 Limitations:
 
@@ -408,6 +427,9 @@ Limitations:
 - Manuscript tables require full walk-forward and edge artifacts by default.
 - Robustness tables are sensitivity diagnostics, not replacement confirmatory
   results.
+- Final audit currently returns `PARTIAL`, not `PASS`, because taxonomy,
+  event-family grouping, close-time semantics, clustered uncertainty, and edge
+  executability remain open final-deployment blockers.
 
 ### `src/predmkt/validation/`
 
@@ -543,32 +565,30 @@ Missing high-priority tests:
 Cannot yet claim:
 
 - Domain-level calibration findings.
-- Audited final walk-forward out-of-sample improvement claims.
 - Final recalibration gains with clustered uncertainty.
 - Executable trading profit or final tradable edge.
 - Event-family leakage safety under a final expanded taxonomy.
-- Final manuscript claims from figures/tables until full Phase 7, Phase 8, and
-  Phase 9 artifacts are scientifically audited.
+- Final manuscript claims from figures/tables until Phase 12-17 blockers are
+  resolved or explicitly scoped out.
 
 Required next build steps:
 
-1. Audit Phase 2 cleaning assumptions, especially whether `close_time` is acceptable as `resolution_ts`.
-2. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
-3. Audit the full walk-forward, edge-simulation, manuscript, and robustness artifacts.
-4. Add clustered uncertainty for raw-vs-recalibrated result tables.
-5. Add Murphy decomposition and expanded calibration methods, including bin-based
+1. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
+2. Harden event-family grouping and rerun leakage diagnostics.
+3. Add clustered uncertainty for raw-vs-recalibrated result tables.
+4. Add Murphy decomposition and expanded calibration methods, including bin-based
    correction and hierarchical/partially pooled models when taxonomy supports
    them.
-6. Expand robustness to full alternate snapshot-method reruns if the current
+5. Expand robustness to full alternate snapshot-method reruns if the current
    small-sample variants materially change conclusions.
-7. Upgrade edge executability only if quote/depth, observed NO-side prices, or
+6. Upgrade edge executability only if quote/depth, observed NO-side prices, or
    documented fee-regime data become available.
-8. Add a final reproducibility/run-registry gate before any publishable claims.
+7. Add a final reproducibility/run-registry gate before any publishable claims.
 
 ## Current Phase Recommendation
 
-Next recommended task: start ROADMAP Phase 11 by auditing final data semantics
-and the full Phase 2-10 artifact chain, then proceed to taxonomy hardening and
-clustered uncertainty.
+Next recommended task: start ROADMAP Phase 12 by hardening taxonomy and
+event-family mapping, then proceed to clustered uncertainty and confirmatory
+inference.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.
