@@ -279,11 +279,48 @@ uv run python scripts/fit_walkforward.py \
   --artifact-dir data/artifacts/walkforward_smoke
 ```
 
-Expected workflow once later phases exist:
+The default edge config expects the full walk-forward prediction artifact. To
+test the edge workflow against the one-fold smoke output instead:
+
+```bash
+uv run python scripts/run_edge_sim.py \
+  --config configs/backtest.yaml \
+  --predictions data/artifacts/walkforward_smoke/predictions.parquet \
+  --artifact-dir data/artifacts/edge_sim_smoke
+```
+
+Run conservative fee-aware YES-side edge screens:
 
 ```bash
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
 ```
+
+The edge simulator reads saved walk-forward predictions and the modeling panel,
+then compares configurable friction tiers:
+
+```text
+fee_only
+fee_spread
+fee_spread_slippage
+```
+
+It writes:
+
+```text
+data/artifacts/edge_sim/edge_candidates.parquet
+data/artifacts/edge_sim/edge_summary_by_tier.parquet
+data/artifacts/edge_sim/edge_summary_by_model_tier.parquet
+data/artifacts/edge_sim/excluded_rows.parquet
+data/artifacts/edge_sim/summary.json
+```
+
+These are simulated expected-value screens, not executable trading profits or
+trade recommendations. The first implementation is taker-only and YES-side
+only. It uses a configurable Kalshi-style fee proxy, a 5% annual capital-lockup
+charge by default, and conservative spread/slippage haircuts because the current
+public Becker/Kalshi-derived panel does not include historical executable
+bid/ask quotes or order-book depth. NO-side candidates are not synthesized from
+`1 - YES price`.
 
 Use the tests to verify the package imports and schema utilities:
 

@@ -16,3 +16,4 @@ Current data-build scripts:
 - `make_presentation_figures.py`: current raw-baseline artifacts to slide-ready PNG/SVG figures under `data/artifacts/presentation/figures/`.
 - `build_walkforward_splits.py`: processed contract-horizon/modeling panel to strict forecast-time expanding walk-forward split assignments and integrity diagnostics.
 - `fit_walkforward.py`: modeling panel plus walk-forward splits to raw-vs-recalibrated fold predictions, metrics, calibrator fits, leakage diagnostics, and summary artifacts.
+- `run_edge_sim.py`: walk-forward predictions plus modeling-panel metadata to conservative taker-only YES-side edge screens under configurable fee, spread, slippage, and capital-lockup assumptions.

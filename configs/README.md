@@ -15,3 +15,4 @@ Current configs:
 - `presentation.yaml`: slide-ready raw-baseline presentation figure inputs, output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values.
 - `validation.yaml`: forecast-time expanding walk-forward split inputs, outputs, monthly train/validation/test windows, event-family fallback policy, and strict overlap leakage rule.
 - `models.yaml`: reusable recalibrator defaults, enabled simple calibrators, probability/outcome columns, prediction clipping epsilon, fit controls, and walk-forward evaluation artifact settings.
+- `backtest.yaml`: conservative taker-only YES-side edge-screen inputs, output directory, Kalshi-style fee proxy, capital-lockup assumption, optional staleness/liquidity filters, and fee/spread/slippage friction tiers.

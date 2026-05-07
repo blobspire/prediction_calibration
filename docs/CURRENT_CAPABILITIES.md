@@ -38,8 +38,8 @@ Status labels:
 | Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs remain taxonomy placeholders until coverage improves. |
 | Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Later model evaluation must decide whether to filter or group around flagged event-family overlaps; event families remain conservative proxies. |
 | Phase 6 recalibrators | complete | Common fit/predict interface, raw/Platt/beta/isotonic calibrators, model config, registry, bounded predictions, and synthetic tests. | Full walk-forward model evaluation is Phase 7. |
-| Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Clustered inference, hierarchical models, and edge translation are later phases. |
-| Phase 8 edge simulation | not implemented | Edge package is only a placeholder. | Need fees, slippage, liquidity/staleness filters, lockup assumptions, conservative labels. |
+| Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Clustered inference, hierarchical models, and full-scale audited edge interpretation remain later work. |
+| Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and smoke-tested artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
 | Phase 9 plots/reports | partial | Raw-baseline pandas/matplotlib diagnostic figures can be generated from saved metric artifacts. | Need manuscript-ready figure/table generation for full raw-vs-recalibrated results. |
 | Phase 10 replication/robustness | not implemented | No replication command or robustness configs. | Need end-to-end small pipeline and robustness checks. |
 
@@ -72,6 +72,7 @@ uv run python scripts/audit_raw_baseline.py --config configs/raw_baseline_audit.
 uv run python scripts/make_presentation_figures.py --config configs/presentation.yaml
 uv run python scripts/build_walkforward_splits.py --config configs/validation.yaml
 uv run python scripts/fit_walkforward.py --config configs/models.yaml
+uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
 ```
 
 Reusable recalibrators are available through the Python registry:
@@ -89,10 +90,11 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `66 passed`.
+Latest local verification used `uv run pytest` and passed `76 passed`.
 `uv run ruff check .` also passes. A one-fold walk-forward smoke run completed
 on the current 695,940-row modeling panel and wrote artifacts under
-`data/artifacts/walkforward_smoke/`.
+`data/artifacts/walkforward_smoke/`. A one-fold edge-simulation smoke run wrote
+artifacts under `data/artifacts/edge_sim_smoke/`.
 
 ## Config Registry
 
@@ -107,7 +109,7 @@ on the current 695,940-row modeling panel and wrote artifacts under
 | `configs/presentation.yaml` | partial | Slide-ready raw-baseline figure inputs, presentation output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values. |
 | `configs/models.yaml` | complete | Recalibrator input columns, enabled raw/Platt/beta/isotonic model names, prediction clipping epsilon, fit controls, metric settings, fit-label policy, and walk-forward artifact directory. |
 | `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
-| `configs/backtest.yaml` | not implemented | Needed for edge simulation assumptions. |
+| `configs/backtest.yaml` | complete | Conservative YES-side edge-screen inputs, fee proxy, spread/slippage haircuts, capital-lockup charge, optional liquidity/staleness filters, and artifact directory. |
 
 ## Local Data Artifacts
 
@@ -171,6 +173,11 @@ Processed outputs:
 - `data/artifacts/walkforward_smoke/calibrator_fits.parquet`
 - `data/artifacts/walkforward_smoke/event_family_leakage.parquet`
 - `data/artifacts/walkforward_smoke/summary.json`
+- `data/artifacts/edge_sim_smoke/edge_candidates.parquet`: one-fold smoke edge-screen output, not confirmatory.
+- `data/artifacts/edge_sim_smoke/edge_summary_by_tier.parquet`
+- `data/artifacts/edge_sim_smoke/edge_summary_by_model_tier.parquet`
+- `data/artifacts/edge_sim_smoke/excluded_rows.parquet`
+- `data/artifacts/edge_sim_smoke/summary.json`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -401,18 +408,33 @@ Capabilities:
 
 Limitations:
 
-- These are model components only; no walk-forward prediction table or raw-vs-
-  recalibrated score artifact is written yet.
+- These are model components; walk-forward prediction and raw-vs-recalibrated
+  score artifacts are written by `src/predmkt/validation/`.
 - No hierarchical or partially pooled calibrator exists.
 - Hyperparameter selection over folds remains Phase 7.
 
-### Placeholder Packages
+### `src/predmkt/edge/`
 
-Status: not implemented.
+Status: complete for Phase 8 conservative expected-value screens.
 
-- `src/predmkt/edge/`
+Capabilities:
 
-These packages currently contain only package docstrings and should not be treated as functional.
+- Loads edge-simulation assumptions from `configs/backtest.yaml`.
+- Reads walk-forward predictions and joins modeling-panel metadata by reconstructed `row_id`.
+- Screens taker-only YES-side candidates without synthetic NO complement trades.
+- Computes configurable Kalshi-style fee proxy, spread haircut, slippage haircut, and annualized capital-lockup charge.
+- Emits fee-only, fee+spread, and fee+spread+slippage tiers for comparison.
+- Records gross edge, net edge, threshold flags, cost components, and simulated realized net per $1 payout contract.
+- Writes candidate, tier-summary, model-tier-summary, exclusion, and summary artifacts.
+- Validates nonnegative cost assumptions, probability bounds, timestamp joins, and prediction/panel key consistency.
+
+Limitations:
+
+- Outputs are simulated EV screens, not executable profits or trade recommendations.
+- Entry prices are transaction snapshot proxies; no historical executable bid/ask or order-book depth is available.
+- Fee formula is a configurable proxy, not a versioned historical exchange billing audit.
+- Spread/slippage are assumption haircuts rather than observed execution costs.
+- NO-side opportunities are intentionally not simulated until explicit NO-side executable prices are available.
 
 ## Test Coverage Registry
 
@@ -447,11 +469,14 @@ Implemented tests:
   from fit rows, split/panel key mismatch failure, bounded recalibrated
   predictions, raw prediction identity, fold/aggregate metric schemas, and
   event-family overlap diagnostics.
+- Edge simulation tests for fee subtraction, thresholding, negative-cost config
+  failures, nonnegative effective costs, capital-lockup scaling, conservative
+  tier ordering, no synthetic NO candidates, exclusion logging, config loading,
+  and script/config artifact smoke output.
 
 Missing high-priority tests:
 
 - Event-family leakage tests using final expanded taxonomy.
-- Edge simulation fee/slippage/lockup invariant tests.
 - End-to-end small pipeline test.
 
 ## Research-Grade Gaps Before Claims
@@ -461,7 +486,7 @@ Cannot yet claim:
 - Domain-level calibration findings.
 - Final walk-forward out-of-sample improvement claims.
 - Final recalibration gains with clustered uncertainty.
-- Conservative tradable edge.
+- Executable trading profit or final tradable edge.
 - Event-family leakage safety under a final expanded taxonomy.
 - Publication-ready figures or tables beyond raw-baseline diagnostic PNG/SVGs.
 
@@ -473,12 +498,13 @@ Required next build steps:
    one-fold smoke output.
 4. Add clustered uncertainty and publication figures for raw-vs-recalibrated
    results.
-5. Add edge simulation only after out-of-sample calibrated probabilities exist.
+5. Run full edge simulation only after the full Phase 7 walk-forward artifacts
+   have been generated and audited.
 
 ## Current Phase Recommendation
 
 Next recommended task: run and audit the full Phase 7 walk-forward outputs, then
-add publication-grade raw-vs-recalibrated figures or begin Phase 8 edge
-simulation once the evaluation artifacts are accepted.
+run Phase 8 edge simulation on those full artifacts and add publication-grade
+raw-vs-recalibrated and friction-layering figures.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.
