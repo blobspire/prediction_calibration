@@ -5,6 +5,7 @@ inputs:
 outputs:
   panel_path: data/processed/contract_horizon_panel_taxonomy.parquet
   audit_path: data/processed/contract_horizon_taxonomy_audit.parquet
+  examples_path: data/processed/contract_horizon_taxonomy_examples.parquet
   summary_path: data/processed/contract_horizon_taxonomy_summary.json
 
 taxonomy:
@@ -12,7 +13,230 @@ taxonomy:
   default_category: unknown
   default_taxonomy_source: event_id_proxy
   default_taxonomy_confidence: low
-  default_taxonomy_notes: event_family_id defaults to event_id; domain/category are unknown unless an explicit rule maps them.
+  default_taxonomy_notes: event_family_id falls back to event_id; domain/category are unknown unless explicit rules map them.
   event_family_proxy: event_id
-  title_inference: disabled
+  title_inference: explicit_rules
   explicit_event_id_mappings: []
+
+  # Ordered precedence in code:
+  # exact_event_id_mappings > prefix_rules > title_keyword_rules > default_unknown.
+  # Prefix rules are explicit ticker-pattern rules and are treated as medium/high
+  # confidence. Title-keyword rules are lower confidence and ambiguity-audited.
+  prefix_rules:
+    - rule_id: finance_equity_index
+      pattern: "^(KX)?(NASDAQ|INX|INXU|INXD|INXW)|^(NASDAQ|INX|INXU|INXD|INXW)"
+      domain: finance
+      category: equity_index
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for equity-index markets
+      priority: 10
+    - rule_id: finance_crypto
+      pattern: "^(KX)?(BTC|BTCD|ETH|ETHD|DOGE|DOGED|XRP|XRPD|SHIBA|SHIBAD)"
+      domain: finance
+      category: crypto
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for crypto price markets
+      priority: 20
+    - rule_id: finance_fx
+      pattern: "^(KX)?(EURUSD|USDJPY)"
+      domain: finance
+      category: fx
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for FX markets
+      priority: 30
+    - rule_id: finance_rates
+      pattern: "^(10Y|KX10Y|FED|KXFED|KXFEDDECISION|KXRATE)"
+      domain: finance
+      category: rates
+      taxonomy_confidence: medium
+      taxonomy_notes: explicit ticker prefix for rates and treasury markets
+      priority: 40
+    - rule_id: finance_commodities_energy
+      pattern: "^(KX)?(WTI|OIL|GAS|GOLD|SILVER)"
+      domain: finance
+      category: commodities_energy
+      taxonomy_confidence: medium
+      taxonomy_notes: explicit ticker prefix for commodity and energy markets
+      priority: 50
+    - rule_id: sports_nfl
+      pattern: "^KX(MVE)?NFL|^KXMVENFL"
+      domain: sports
+      category: nfl
+      is_sports: true
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for NFL markets
+      priority: 100
+    - rule_id: sports_nba
+      pattern: "^KX(MVE)?NBA|^KXMVENBA"
+      domain: sports
+      category: nba
+      is_sports: true
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for NBA markets
+      priority: 110
+    - rule_id: sports_ncaaf
+      pattern: "^KXNCAAF"
+      domain: sports
+      category: ncaaf
+      is_sports: true
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for college football markets
+      priority: 120
+    - rule_id: sports_ncaamb
+      pattern: "^KXNCAAMB"
+      domain: sports
+      category: ncaamb
+      is_sports: true
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for men's college basketball markets
+      priority: 130
+    - rule_id: sports_mlb
+      pattern: "^KXMLB"
+      domain: sports
+      category: mlb
+      is_sports: true
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for MLB markets
+      priority: 140
+    - rule_id: sports_nhl
+      pattern: "^KXNHL"
+      domain: sports
+      category: nhl
+      is_sports: true
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for NHL markets
+      priority: 150
+    - rule_id: sports_tennis
+      pattern: "^KX(ATP|WTA)MATCH"
+      domain: sports
+      category: tennis
+      is_sports: true
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for tennis match markets
+      priority: 160
+    - rule_id: sports_golf
+      pattern: "^KX(PGA|PGATOUR|LIV)"
+      domain: sports
+      category: golf
+      is_sports: true
+      taxonomy_confidence: medium
+      taxonomy_notes: explicit ticker prefix for golf markets
+      priority: 170
+    - rule_id: sports_soccer
+      pattern: "^KX(EPL|MLS|WNBA)"
+      domain: sports
+      category: soccer_or_wnba
+      is_sports: true
+      taxonomy_confidence: medium
+      taxonomy_notes: explicit ticker prefix for soccer/WNBA sports markets
+      priority: 180
+    - rule_id: weather_temperature
+      pattern: "^(KX)?(HIGH|LOW|TEMP|CITIESWEATHER|SNOW|RAIN)"
+      domain: weather
+      category: temperature_precipitation
+      taxonomy_confidence: high
+      taxonomy_notes: explicit ticker prefix for public weather markets
+      priority: 200
+    - rule_id: politics_mentions_polls
+      pattern: "^(538APPROVE|APRPOTUS|KXTRUMPMENTION|KXSECPRESSMENTION|KXPOLL|KXAPPROV|KXELECT|KXPRES)"
+      domain: politics
+      category: polls_mentions_elections
+      taxonomy_confidence: medium
+      taxonomy_notes: explicit ticker prefix for politics/polls/mentions markets
+      priority: 300
+    - rule_id: entertainment_music_awards_apps
+      pattern: "^(KX)?(OSCAR|SPOTIFY|APPRANK|1SONG|GRAMMY|BOXOFFICE|MOVIE)"
+      domain: entertainment
+      category: music_awards_apps
+      taxonomy_confidence: medium
+      taxonomy_notes: explicit ticker prefix for entertainment, music, app, and awards markets
+      priority: 400
+
+  event_family_regex_rules:
+    - rule_id: nfl_game_family
+      pattern: "^KXNFL(?:GAME|SPREAD|TOTAL|ANYTD|FIRSTTD|RECYDS|PASSYDS|RUSHYDS|RECEPTIONS)-([0-9A-Z]+)"
+      family_id_prefix: "sports:nfl:"
+      event_family_confidence: medium
+      taxonomy_notes: group NFL winner/spread/total/player-prop contracts by date and matchup key
+      priority: 100
+    - rule_id: nba_game_family
+      pattern: "^KXNBA(?:GAME|SPREAD|TOTAL)-([0-9A-Z]+)"
+      family_id_prefix: "sports:nba:"
+      event_family_confidence: medium
+      taxonomy_notes: group NBA winner/spread/total contracts by date and matchup key
+      priority: 110
+    - rule_id: ncaaf_game_family
+      pattern: "^KXNCAAF(?:GAME|SPREAD|TOTAL)-([0-9A-Z]+)"
+      family_id_prefix: "sports:ncaaf:"
+      event_family_confidence: medium
+      taxonomy_notes: group college football winner/spread/total contracts by date and matchup key
+      priority: 120
+    - rule_id: ncaamb_game_family
+      pattern: "^KXNCAAMB(?:GAME|SPREAD|TOTAL)-([0-9A-Z]+)"
+      family_id_prefix: "sports:ncaamb:"
+      event_family_confidence: medium
+      taxonomy_notes: group men's college basketball winner/spread/total contracts by date and matchup key
+      priority: 130
+    - rule_id: mlb_game_family
+      pattern: "^KXMLB(?:GAME|SPREAD|TOTAL)-([0-9A-Z]+)"
+      family_id_prefix: "sports:mlb:"
+      event_family_confidence: medium
+      taxonomy_notes: group MLB winner/spread/total contracts by date and matchup key
+      priority: 140
+    - rule_id: nhl_game_family
+      pattern: "^KXNHL(?:GAME|SPREAD|TOTAL)-([0-9A-Z]+)"
+      family_id_prefix: "sports:nhl:"
+      event_family_confidence: medium
+      taxonomy_notes: group NHL winner/spread/total contracts by date and matchup key
+      priority: 150
+
+  title_keyword_rules:
+    - rule_id: title_finance_crypto
+      keywords: [Bitcoin, Ethereum, Dogecoin, Ripple, Shiba]
+      domain: finance
+      category: crypto
+      taxonomy_confidence: low
+      taxonomy_notes: explicit title keyword for crypto markets
+      priority: 1000
+    - rule_id: title_finance_equity_index
+      keywords: [Nasdaq, "S&P 500", "Dow Jones"]
+      domain: finance
+      category: equity_index
+      taxonomy_confidence: low
+      taxonomy_notes: explicit title keyword for equity-index markets
+      priority: 1010
+    - rule_id: title_finance_rates
+      keywords: [Treasury, "10-year", "2-year", "3-month", "interest rate", "Fed"]
+      domain: finance
+      category: rates
+      taxonomy_confidence: low
+      taxonomy_notes: explicit title keyword for rates markets
+      priority: 1020
+    - rule_id: title_finance_commodities
+      keywords: [WTI, oil, gold, silver, natural gas]
+      domain: finance
+      category: commodities_energy
+      taxonomy_confidence: low
+      taxonomy_notes: explicit title keyword for commodity and energy markets
+      priority: 1030
+    - rule_id: title_weather
+      keywords: ["high temp", "temperature", "snow", "rain", "precipitation"]
+      domain: weather
+      category: temperature_precipitation
+      taxonomy_confidence: low
+      taxonomy_notes: explicit title keyword for weather markets
+      priority: 1100
+    - rule_id: title_politics
+      keywords: ["approval rating", "Trump", "Biden", "election", "Press Secretary", "president"]
+      domain: politics
+      category: polls_mentions_elections
+      taxonomy_confidence: low
+      taxonomy_notes: explicit title keyword for politics, polls, and mentions markets
+      priority: 1200
+    - rule_id: title_entertainment
+      keywords: [Spotify, "top song", Oscars, Grammy, "Best Picture", "iPhone app", "#1 hit"]
+      domain: entertainment
+      category: music_awards_apps
+      taxonomy_confidence: low
+      taxonomy_notes: explicit title keyword for entertainment/music/awards/app markets
+      priority: 1300

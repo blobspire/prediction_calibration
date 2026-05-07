@@ -61,6 +61,10 @@ replication:
         "tables",
     ]
     assert "--limit-contracts" in stages[0].command
+    assert "--examples" in stages[1].command
+    assert str(tmp_path / "processed" / "contract_horizon_taxonomy_examples.parquet") in stages[
+        1
+    ].command
     assert "--limit-folds" in stages[5].command
 
     manifest = replication.run_pipeline(config, dry_run=True)

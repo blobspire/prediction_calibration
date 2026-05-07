@@ -4,11 +4,11 @@
 | reporting | Artifact run label: full. |
 | raw_baseline | Phase 4 evaluates raw probabilities only; no recalibrators or walk-forward model evaluation are implemented here. |
 | raw_baseline | Primary aggregation is equal-contract; trade-weighted metrics are disabled unless explicitly enabled as a robustness output. |
-| raw_baseline | Domain/category groups should not be interpreted as domain findings while taxonomy coverage remains unknown. |
+| raw_baseline | Domain/category groups use the audited rule-based taxonomy; title-keyword, ambiguous, and unknown assignments remain exploratory rather than confirmatory domain findings. |
 | raw_baseline | Liquidity and staleness groups use public feature-panel proxies, not historical order-book depth or executable quotes. |
 | walkforward | Phase 7 evaluates simple raw/Platt/beta/isotonic calibrators only; no hierarchical models are implemented. |
 | walkforward | Fit data uses train+validation rows with labels resolved by each test fold start; rows with later resolutions are excluded from fitting. |
-| walkforward | Event-family overlaps are reported but not filtered because current event_family_id values remain conservative proxies. |
+| walkforward | Event-family overlaps are reported but not filtered; Phase 12 family IDs are audited regex/event fallbacks, with clustered inference deferred to Phase 13. |
 | walkforward | Metrics are equal-contract over contract-horizon test rows; no trade weighting or edge simulation is implemented here. |
 | edge_simulation | Edge outputs are simulated expected-value screens, not executable trading profits or trade recommendations. |
 | edge_simulation | The first edge layer is YES-side only; NO trades are not synthesized from 1 minus the YES price. |

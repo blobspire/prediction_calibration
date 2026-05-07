@@ -7,7 +7,7 @@ Keep methodological assumptions explicit here rather than hidden in notebooks or
 Current configs:
 
 - `sampling.yaml`: contract-horizon snapshot inputs, outputs, horizon grid, horizon-specific stale-price tolerances, VWAP windows, and snapshot method preferences.
-- `taxonomy.yaml`: conservative taxonomy enrichment inputs, outputs, event-family proxy, explicit event-id mapping rules, and unknown-domain defaults.
+- `taxonomy.yaml`: Phase 12 taxonomy enrichment inputs, outputs, ordered exact-event/prefix/title rules, regex event-family grouping, ambiguity handling, confidence labels, and unknown defaults.
 - `features.yaml`: modeling-panel inputs, outputs, probability clipping epsilon, momentum/volatility windows, liquidity window, and missing-feature policies.
 - `metrics.yaml`: raw-probability baseline metrics, log-loss clipping epsilon, reliability bins, calibration fit settings, groupings, and explicit equal-contract primary aggregation.
 - `figures.yaml`: raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI.

@@ -471,7 +471,8 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _common_limitations(config: ReportingConfig) -> list[str]:
     return [
         "Manuscript outputs consume saved result artifacts and do not recompute core models.",
-        "Domain/category manuscript outputs are omitted while taxonomy coverage remains unknown.",
+        "Domain/category manuscript outputs remain exploratory because taxonomy coverage "
+        "includes lower-confidence title rules plus ambiguous and unknown rows.",
         "Edge outputs are simulated expected-value screens, not executable trading profits.",
         f"Artifact run label is {config.artifact_run_label}.",
     ]

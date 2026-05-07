@@ -178,8 +178,8 @@ def build_walkforward_splits(config: ValidationConfig) -> WalkForwardSummary:
             "not implemented here.",
             "Event-family leakage checks use the configured event_family_id when available and "
             "fall back to event_id for raw snapshot panels.",
-            "The current event_family_id is a conservative proxy until taxonomy coverage is "
-            "expanded and audited.",
+            "Event-family checks use Phase 12 audited family IDs when present, with explicit "
+            "event_id or contract_id fallbacks where regex grouping is unavailable.",
         ],
     )
     config.summary_path.write_text(

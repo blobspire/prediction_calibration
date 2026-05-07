@@ -141,8 +141,9 @@ def build_raw_baseline_plots(config: RawBaselinePlotConfig) -> RawBaselinePlotSu
         limitations=[
             "Figures visualize raw baseline artifacts only; they are not recalibrated "
             "or walk-forward model results.",
-            "Domain/category visualizations are omitted because taxonomy coverage is "
-            "currently unknown.",
+            "Domain/category visualizations remain exploratory because taxonomy coverage "
+            "mixes high-confidence ticker rules with lower-confidence title and unknown "
+            "assignments.",
             "Figures use transaction-price baseline probabilities and public liquidity "
             "proxies, not executable historical quotes.",
         ],

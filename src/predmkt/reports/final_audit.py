@@ -180,7 +180,7 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
             "refit models, or change methodology.",
             "A PARTIAL verdict can be acceptable for Phase 11 when hard invariants pass but "
             "known semantic limitations remain.",
-            "Final deployment still requires the later roadmap phases for taxonomy hardening, "
+            "Final deployment still requires later roadmap phases for manual taxonomy review, "
             "clustered uncertainty, expanded robustness, and edge executability.",
         ],
     )
@@ -367,20 +367,32 @@ def _audit_snapshot_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
 
 def _audit_modeling_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
     summary = _read_json(config.modeling_summary_path)
+    taxonomy_summary = _read_json(config.taxonomy_summary_path)
+    available_columns = set(_parquet_columns(config.modeling_panel_path))
+    taxonomy_required = [
+        "is_sports",
+        "taxonomy_rule_id",
+        "taxonomy_ambiguous",
+        "event_family_source",
+        "event_family_confidence",
+    ]
+    missing_taxonomy_columns = sorted(set(taxonomy_required) - available_columns)
+    read_columns = [
+        "contract_id",
+        "horizon_name",
+        "forecast_ts",
+        "resolution_ts",
+        "price_timestamp",
+        "max_feature_source_ts",
+        "domain",
+        "category",
+        "event_family_id",
+        "event_family_id_inferred",
+        *[column for column in taxonomy_required if column in available_columns],
+    ]
     frame = pd.read_parquet(
         config.modeling_panel_path,
-        columns=[
-            "contract_id",
-            "horizon_name",
-            "forecast_ts",
-            "resolution_ts",
-            "price_timestamp",
-            "max_feature_source_ts",
-            "domain",
-            "category",
-            "event_family_id",
-            "event_family_id_inferred",
-        ],
+        columns=read_columns,
     )
     frame["forecast_ts"] = pd.to_datetime(frame["forecast_ts"], utc=True)
     frame["resolution_ts"] = pd.to_datetime(frame["resolution_ts"], utc=True)
@@ -393,6 +405,12 @@ def _audit_modeling_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
     domain_unknown = _all_unknown(frame["domain"])
     category_unknown = _all_unknown(frame["category"])
     inferred_share = float(pd.to_numeric(frame["event_family_id_inferred"], errors="coerce").mean())
+    taxonomy_input_rows = int(taxonomy_summary.get("input_row_count", -1))
+    taxonomy_output_rows = int(taxonomy_summary.get("output_row_count", -2))
+    taxonomy_dropped = int(taxonomy_summary.get("dropped_row_count", -1))
+    unknown_rate = taxonomy_summary.get("unknown_rate")
+    ambiguous_rate = taxonomy_summary.get("ambiguous_rate")
+    event_family_source_counts = taxonomy_summary.get("event_family_source_counts", {})
     return [
         _check(
             "phase_4_5",
@@ -424,19 +442,58 @@ def _audit_modeling_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
         ),
         _check(
             "taxonomy",
+            "taxonomy_phase12_columns",
+            "PASS" if not missing_taxonomy_columns else "FAIL",
+            "modeling panel carries Phase 12 taxonomy audit columns",
+            "modeling panel is missing Phase 12 taxonomy audit columns",
+            {"missing_columns": missing_taxonomy_columns},
+        ),
+        _check(
+            "taxonomy",
+            "taxonomy_no_row_drops",
+            "PASS"
+            if taxonomy_input_rows == taxonomy_output_rows == len(frame) and taxonomy_dropped == 0
+            else "FAIL",
+            "taxonomy enrichment preserved row count",
+            "taxonomy enrichment dropped rows or summary row counts disagree",
+            {
+                "taxonomy_input_rows": taxonomy_input_rows,
+                "taxonomy_output_rows": taxonomy_output_rows,
+                "taxonomy_dropped": taxonomy_dropped,
+                "modeling_rows": len(frame),
+            },
+        ),
+        _check(
+            "taxonomy",
             "domain_category_coverage",
             "PARTIAL" if domain_unknown or category_unknown else "PASS",
             "domain/category taxonomy has non-unknown coverage",
-            "domain/category are all unknown and cannot support domain-level final claims",
-            {"domain_all_unknown": domain_unknown, "category_all_unknown": category_unknown},
+            "domain/category taxonomy remains too sparse for final domain-level claims",
+            {
+                "domain_all_unknown": domain_unknown,
+                "category_all_unknown": category_unknown,
+                "unknown_rate": unknown_rate,
+                "ambiguous_rate": ambiguous_rate,
+            },
         ),
         _check(
             "taxonomy",
             "event_family_proxy",
             "PARTIAL" if inferred_share >= 0.99 else "PASS",
             "event_family_id has audited non-proxy coverage",
-            "event_family_id is still effectively the inferred event_id proxy",
-            {"event_family_inferred_share": inferred_share},
+            "event_family_id relies almost entirely on fallback grouping",
+            {
+                "event_family_inferred_share": inferred_share,
+                "event_family_source_counts": event_family_source_counts,
+            },
+        ),
+        _check(
+            "taxonomy",
+            "taxonomy_ambiguity_reported",
+            "PASS" if "ambiguous_rate" in taxonomy_summary else "FAIL",
+            "taxonomy summary reports ambiguity rate",
+            "taxonomy summary does not report ambiguity rate",
+            {"ambiguous_rate": ambiguous_rate},
         ),
     ]
 
@@ -569,7 +626,7 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "event_family_policy_report_only",
             event_policy_status,
             "event-family overlaps are handled by a final audited policy",
-            "event-family overlaps are reported, not filtered, because event_family_id is a proxy",
+            "event-family overlaps are reported, not filtered; clustered handling is Phase 13",
             {
                 "event_family_overlap_count": summary.get("event_family_overlap_count"),
                 "event_family_policy": event_policy,
@@ -707,7 +764,7 @@ def _audit_reporting(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "phase_9",
             "reporting_limitations",
             "PASS" if "simulated" in limitations and "unknown" in limitations else "FAIL",
-            "manuscript manifests record simulated-edge and unknown-taxonomy limitations",
+            "manuscript manifests record simulated-edge and taxonomy-coverage limitations",
             "manuscript manifests lack key limitation language",
             {"limitations": limitations},
         ),
@@ -933,9 +990,10 @@ def _semantics_markdown(
         "- `resolution_ts` is the normalized timestamp used by downstream panels.",
         "- Cleaned interim contracts currently do not retain a separate raw `close_time` column, "
         "so the resolution/close-time mapping remains a documented semantic limitation.",
-        "- Domain/category taxonomy remains non-confirmatory while values are all or mostly "
-        "`unknown`.",
-        "- `event_family_id` remains a conservative proxy until Phase 12 hardens taxonomy.",
+        "- Domain/category taxonomy is rule-based and audited, but low-confidence title, "
+        "ambiguous, and unknown assignments remain non-confirmatory.",
+        "- `event_family_id` uses audited regex grouping where available and explicit "
+        "event_id/contract_id fallbacks elsewhere; clustered inference remains Phase 13.",
         "- Edge outputs remain simulated expected-value screens, not executable trading profits.",
         "",
         "## Phase Status",

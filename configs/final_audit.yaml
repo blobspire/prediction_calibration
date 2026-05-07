@@ -32,12 +32,11 @@ audit:
   expected_reporting_run_label: full
   known_partial_limitations:
     - resolution_ts_close_time_not_separately_retained
-    - domain_category_unknown
-    - event_family_id_proxy
+    - taxonomy_low_confidence_ambiguous_unknown_rows
+    - event_family_regex_and_fallback_mix
     - edge_outputs_simulated_not_executable
     - quote_depth_unavailable
     - clustered_uncertainty_not_implemented
-    - final_taxonomy_not_hardened
   severity_rules:
     hard_fail:
       - missing_required_artifact
@@ -48,6 +47,6 @@ audit:
       - unsupported_executable_profit_language
     partial_allowed:
       - resolution_ts_close_time_not_separately_retained
-      - domain_category_unknown
-      - event_family_id_proxy
+      - taxonomy_low_confidence_ambiguous_unknown_rows
+      - event_family_regex_and_fallback_mix
       - edge_outputs_simulated_not_executable

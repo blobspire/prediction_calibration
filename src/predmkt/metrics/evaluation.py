@@ -269,8 +269,9 @@ def evaluate_raw_panel(config: MetricsConfig) -> MetricsEvaluationSummary:
                 "model evaluation are implemented here.",
                 "Primary aggregation is equal-contract; trade-weighted metrics are disabled "
                 "unless explicitly enabled as a robustness output.",
-                "Domain/category groups should not be interpreted as domain findings while "
-                "taxonomy coverage remains unknown.",
+                "Domain/category groups use the audited rule-based taxonomy; title-keyword, "
+                "ambiguous, and unknown assignments remain exploratory rather than "
+                "confirmatory domain findings.",
                 "Liquidity and staleness groups use public feature-panel proxies, not "
                 "historical order-book depth or executable quotes.",
             ],

@@ -15,6 +15,7 @@ sampling:
     - 1d
     - 6h
     - 1h
+    - 15m
     - close
   close_horizon_definition: close = resolution_ts - 1 minute
   snapshot:
@@ -45,6 +46,9 @@ sampling:
       1h:
         vwap_window: 5m
         max_staleness: 1h
+      15m:
+        vwap_window: 5m
+        max_staleness: 15m
       close:
         method_preference:
           - last_trade

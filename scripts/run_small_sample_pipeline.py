@@ -108,6 +108,7 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
     snapshot_summary = processed / "contract_horizon_panel_summary.json"
     taxonomy = processed / "contract_horizon_panel_taxonomy.parquet"
     taxonomy_audit = processed / "contract_horizon_taxonomy_audit.parquet"
+    taxonomy_examples = processed / "contract_horizon_taxonomy_examples.parquet"
     taxonomy_summary = processed / "contract_horizon_taxonomy_summary.json"
     features = processed / "modeling_panel.parquet"
     features_summary = processed / "modeling_panel_summary.json"
@@ -158,6 +159,8 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
                 str(taxonomy_audit),
                 "--summary",
                 str(taxonomy_summary),
+                "--examples",
+                str(taxonomy_examples),
             ],
         ),
         PipelineStage(

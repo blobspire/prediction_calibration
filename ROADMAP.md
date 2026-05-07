@@ -270,6 +270,10 @@ result.
 
 ## Phase 12 — Taxonomy and event-family hardening
 
+Status: implemented as a rule-based, audited taxonomy layer on 2026-05-07.
+Remaining taxonomy-related constraints are manual review of low-confidence,
+ambiguous, and unknown rows plus Phase 13 clustered inference.
+
 ### Goal
 Replace placeholder taxonomy with auditable event-family, domain, and category
 coverage.
@@ -285,8 +289,8 @@ coverage.
 ### Done when
 - Domain/category are no longer entirely `unknown`, or the roadmap explicitly
   restricts final claims to overall/horizon/liquidity/staleness only.
-- Event-family leakage checks and clustered inference use an audited grouping
-  field.
+- Event-family leakage checks use an audited grouping field; clustered inference
+  remains Phase 13.
 - Domain/sports robustness checks are computed only where taxonomy coverage is
   sufficient; otherwise they emit explicit `not_applicable` artifacts.
 

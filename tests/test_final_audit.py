@@ -99,6 +99,17 @@ def test_final_audit_fails_on_unsupported_edge_side(tmp_path: Path) -> None:
     assert edge["status"] == "FAIL"
 
 
+def test_final_audit_fails_on_missing_phase12_taxonomy_columns(tmp_path: Path) -> None:
+    config = load_final_audit_config(_write_fixture(tmp_path, missing_phase12_taxonomy=True))
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    taxonomy = checks[checks["check_id"] == "taxonomy_phase12_columns"].iloc[0]
+    assert taxonomy["status"] == "FAIL"
+
+
 def _write_fixture(
     tmp_path: Path,
     *,
@@ -109,6 +120,7 @@ def _write_fixture(
     unknown_taxonomy: bool = False,
     bad_edge_side: bool = False,
     quote_edge_side: bool = True,
+    missing_phase12_taxonomy: bool = False,
 ) -> Path:
     raw_repo = tmp_path / "raw_repo"
     raw_repo.mkdir()
@@ -126,6 +138,16 @@ def _write_fixture(
         path.mkdir()
 
     panel = _panel(unknown_taxonomy=unknown_taxonomy)
+    if missing_phase12_taxonomy:
+        panel = panel.drop(
+            columns=[
+                "is_sports",
+                "taxonomy_rule_id",
+                "taxonomy_ambiguous",
+                "event_family_source",
+                "event_family_confidence",
+            ]
+        )
     snapshot = _snapshot_panel(snapshot_lookahead=snapshot_lookahead)
     if duplicate_snapshot:
         snapshot = pd.concat([snapshot, snapshot.iloc[[0]]], ignore_index=True)
@@ -143,7 +165,21 @@ def _write_fixture(
         encoding="utf-8",
     )
     panel.to_parquet(processed / "contract_horizon_panel_taxonomy.parquet", index=False)
-    (processed / "contract_horizon_taxonomy_summary.json").write_text("{}", encoding="utf-8")
+    (processed / "contract_horizon_taxonomy_summary.json").write_text(
+        json.dumps(
+            {
+                "input_row_count": len(panel),
+                "output_row_count": len(panel),
+                "dropped_row_count": 0,
+                "unknown_rate": 1.0 if unknown_taxonomy else 0.0,
+                "ambiguous_rate": 0.0,
+                "event_family_source_counts": {
+                    _fixture_event_family_source(unknown_taxonomy): len(panel)
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     panel.to_parquet(processed / "modeling_panel.parquet", index=False)
     (processed / "modeling_panel_summary.json").write_text(
         json.dumps({"output_row_count": len(panel)}),
@@ -196,6 +232,10 @@ audit:
         encoding="utf-8",
     )
     return config_path
+
+
+def _fixture_event_family_source(unknown_taxonomy: bool) -> str:
+    return "event_id_fallback" if unknown_taxonomy else "event_family_regex_rule"
 
 
 def _write_interim(interim: Path) -> None:
@@ -283,6 +323,14 @@ def _panel(*, unknown_taxonomy: bool) -> pd.DataFrame:
             "domain": ["unknown" if unknown_taxonomy else "macro"] * 2,
             "category": ["unknown" if unknown_taxonomy else "inflation"] * 2,
             "event_family_id_inferred": [unknown_taxonomy, unknown_taxonomy],
+            "is_sports": [False, False],
+            "taxonomy_rule_id": ["default_unknown" if unknown_taxonomy else "macro_rule"] * 2,
+            "taxonomy_ambiguous": [False, False],
+            "event_family_source": [
+                "event_id_fallback" if unknown_taxonomy else "event_family_regex_rule"
+            ]
+            * 2,
+            "event_family_confidence": ["low" if unknown_taxonomy else "medium"] * 2,
         }
     )
 

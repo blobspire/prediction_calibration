@@ -739,8 +739,8 @@ def _limitations() -> list[str]:
         "replacement estimates.",
         "Snapshot-method slices are based on saved artifact rows; only the configured small "
         "snapshot variants are alternate reruns.",
-        "Domain/category exclusions are not substantively available while taxonomy coverage "
-        "is all unknown.",
+        "Domain/category exclusions use Phase 12 rule-based taxonomy when available; "
+        "low-confidence title, ambiguous, and unknown assignments remain non-confirmatory.",
         "Edge friction scenarios are simulated EV screens using transaction-price proxies; "
         "historical executable quote depth is unavailable.",
         "No NO-side complement trades are synthesized.",

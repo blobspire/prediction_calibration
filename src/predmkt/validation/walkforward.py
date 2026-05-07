@@ -172,8 +172,8 @@ def evaluate_walkforward(config: ModelsConfig) -> WalkForwardEvaluationSummary:
             "hierarchical models are implemented.",
             "Fit data uses train+validation rows with labels resolved by each test "
             "fold start; rows with later resolutions are excluded from fitting.",
-            "Event-family overlaps are reported but not filtered because current "
-            "event_family_id values remain conservative proxies.",
+            "Event-family overlaps are reported but not filtered; Phase 12 family IDs are "
+            "audited regex/event fallbacks, with clustered inference deferred to Phase 13.",
             "Metrics are equal-contract over contract-horizon test rows; no trade "
             "weighting or edge simulation is implemented here.",
         ],

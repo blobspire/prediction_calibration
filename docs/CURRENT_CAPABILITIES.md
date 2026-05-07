@@ -21,8 +21,8 @@ Status labels:
 - Confirmatory evaluation must be split by `forecast_ts`, not row order or resolution timestamp.
 - Snapshot and feature construction must use only source observations satisfying `source_ts <= forecast_ts < resolution_ts`.
 - Primary aggregation must not become trade-weighted unless explicitly configured as a robustness check.
-- Domain-level findings are not allowed yet because domain/category taxonomy coverage is currently all `unknown`.
-- Event-family leakage checks are not final yet because `event_family_id` is currently a conservative `event_id` proxy.
+- Domain-level findings remain conditional: taxonomy now has audited rule-based coverage, but low-confidence title, ambiguous, and unknown rows are not confirmatory.
+- Event-family leakage checks use hardened Phase 12 family IDs where rules match, but overlaps are still report-only until clustered handling/inference is implemented.
 
 ## Phase Gate Summary
 
@@ -33,17 +33,17 @@ Status labels:
 | Becker raw data setup | complete | Becker repo/data present under `data/raw/becker_prediction_market_analysis`; raw repo clean. | Raw data is local and ignored; another machine must clone/download separately. |
 | Phase 2 raw-to-interim Kalshi cleaning | partial | Resolved binary contracts and cleaned price observations are built and logged. | `close_time` remains provisional resolution timestamp; no richer void/delist semantic review by family. |
 | Phase 3 contract-horizon snapshots | complete | Config-driven full horizon grid, horizon-specific last-trade/VWAP policy, no-look-ahead validation, canonical panel schema. | Snapshot uses trade proxy only; no historical quotes/order book. |
-| Conservative taxonomy layer | partial | Adds `domain`, `category`, `event_family_id`, taxonomy audit, and explicit rule config. | All domain/category values are `unknown`; event family is `event_id` proxy. |
-| Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Domain/category placeholders; liquidity is public trade proxy only; momentum/volatility use transaction prices. |
-| Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs remain taxonomy placeholders until coverage improves. |
-| Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Later model evaluation must decide whether to filter or group around flagged event-family overlaps; event families remain conservative proxies. |
+| Phase 12 taxonomy layer | complete | Ordered exact-event, event-family regex, prefix, title-keyword, and default-unknown rules produce audited domain/category/sports/event-family fields with confidence and ambiguity flags. | Domain/category claims still require confidence/ambiguity filters and manual review for low-confidence or unknown rows. |
+| Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, Phase 12 taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Liquidity is public trade proxy only; momentum/volatility use transaction prices. |
+| Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs are taxonomy-rule based and exploratory until uncertainty/manual review supports claims. |
+| Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Event-family overlaps are reported, not filtered; clustered handling remains Phase 13. |
 | Phase 6 recalibrators | complete | Common fit/predict interface, raw/Platt/beta/isotonic calibrators, model config, registry, bounded predictions, and synthetic tests. | Full walk-forward model evaluation is Phase 7. |
 | Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Clustered inference, hierarchical models, and full-scale audited edge interpretation remain later work. |
 | Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
-| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need clustered uncertainty and Phase 12-17 final gates. |
-| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions are not substantive while taxonomy is all `unknown`. |
-| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 0 hard failures. | Phase 12-17 blockers remain: taxonomy hardening, clustered uncertainty, expanded robustness, and edge executability. |
-| Final deployment readiness | partial | Phase 0-11 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, and tests passing. | Phases 12-17 in `ROADMAP.md` remain required before final publishable claims. |
+| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need clustered uncertainty and Phase 13-17 final gates. |
+| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions use rule-based taxonomy but remain exploratory. |
+| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 0 hard failures. | Phase 13-17 blockers remain: clustered uncertainty, expanded models/robustness, and edge executability. |
+| Final deployment readiness | partial | Phase 0-12 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, and tests passing. | Phases 13-17 in `ROADMAP.md` remain required before final publishable claims. |
 
 ## Current Commands
 
@@ -97,7 +97,7 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `93 passed`.
+Latest local verification used `uv run pytest` and passed `97 passed`.
 `uv run ruff check .` also passes. Targeted `mypy` checks pass for
 `src/predmkt/edge`, `src/predmkt/plots/manuscript.py`, and
 `src/predmkt/reports/manuscript.py`. Full walk-forward, edge-simulation,
@@ -109,7 +109,7 @@ exist under their configured output roots.
 | Config | Status | Purpose |
 |---|---|---|
 | `configs/sampling.yaml` | complete | Snapshot inputs/outputs, horizon grid, `close = resolution_ts - 1 minute`, horizon-specific staleness/VWAP windows, and snapshot method preference. |
-| `configs/taxonomy.yaml` | partial | Conservative taxonomy enrichment, explicit event-id mapping rules, default unknown domain/category, event-id event-family proxy. |
+| `configs/taxonomy.yaml` | complete | Phase 12 ordered exact-event, event-family regex, prefix, title-keyword, default-unknown, confidence, ambiguity, sports flag, and fallback event-family rules. |
 | `configs/features.yaml` | partial | Modeling feature inputs/outputs, probability epsilon, 24h momentum/volatility windows, 7d liquidity window, missing-feature policy. |
 | `configs/metrics.yaml` | complete | Raw baseline metric input/output paths, log-loss clipping epsilon, reliability bins, calibration fit settings, groupings, and equal-contract primary aggregation. |
 | `configs/figures.yaml` | partial | Raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI. |
@@ -119,7 +119,7 @@ exist under their configured output roots.
 | `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
 | `configs/backtest.yaml` | complete | Conservative YES-side edge-screen inputs, fee proxy, spread/slippage haircuts, capital-lockup charge, optional liquidity/staleness filters, and artifact directory. |
 | `configs/reporting.yaml` | complete | Manuscript figure/table input artifact dirs, `paper/` output dirs, model/horizon order, figure/table formats, metric scope, and explicit full-vs-smoke run label. |
-| `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, explicit unavailable-domain handling, friction scenarios, and small snapshot variants. |
+| `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, taxonomy-rule domain exclusions, friction scenarios, and small snapshot variants. |
 | `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs, limits, run label, and separate processed/artifact/paper output roots. |
 | `configs/final_audit.yaml` | complete | Phase 11 saved-artifact and data-semantics audit inputs, expected horizons/models, full-run labels, hard-fail/partial severity rules, known partial limitations, and audit output paths. |
 
@@ -147,7 +147,12 @@ Processed outputs:
 - `data/processed/contract_horizon_panel_summary.json`
 - `data/processed/contract_horizon_panel_taxonomy.parquet`: 695,940 rows.
 - `data/processed/contract_horizon_taxonomy_audit.parquet`
+- `data/processed/contract_horizon_taxonomy_examples.parquet`
 - `data/processed/contract_horizon_taxonomy_summary.json`
+  - unknown rows: 92,904 (`13.35%`)
+  - ambiguous rows: 1,209 (`0.17%`)
+  - sports rows: 259,647 (`37.31%`)
+  - event-family regex rows: 120,843; event-id fallback rows: 575,097
 - `data/processed/modeling_panel.parquet`: 695,940 rows.
 - `data/processed/modeling_panel_summary.json`
 - `data/artifacts/raw_baseline/metrics_overall.parquet`
@@ -210,12 +215,13 @@ Processed outputs:
 - `data/artifacts/robustness/summary.json`: full robustness run over 1,970,448 saved prediction rows.
 - `data/artifacts/robustness/snapshot_method_slices.parquet`
 - `data/artifacts/robustness/liquidity_filter_sensitivity.parquet`
-- `data/artifacts/robustness/domain_exclusion_status.parquet`: records domain/category exclusions as unavailable while taxonomy is all `unknown`.
+- `data/artifacts/robustness/domain_exclusion_status.parquet`: records non-confirmatory domain/category exclusion sensitivity using Phase 12 taxonomy.
 - `data/artifacts/robustness/friction_assumption_sensitivity.parquet`
 - `data/artifacts/robustness/snapshot_variant_runs.parquet`: two small-sample snapshot variant summaries.
 - `paper/robustness/tables/*.csv`
 - `paper/robustness/tables/*.md`
-- `data/processed/replication_small/modeling_panel.parquet`: deterministic small-sample replication panel with 8,460 rows.
+- `data/processed/replication_small/contract_horizon_taxonomy_examples.parquet`
+- `data/processed/replication_small/modeling_panel.parquet`: deterministic small-sample replication panel with 8,882 rows.
 - `data/artifacts/replication/small_sample/replication_manifest.json`: all 9 stages completed.
 - `data/artifacts/replication/small_sample/walkforward/predictions.parquet`: 1,636 small-sample walk-forward predictions over 2 evaluated folds.
 - `data/artifacts/replication/small_sample/edge_sim/edge_candidates.parquet`: 4,908 small-sample simulated edge candidate rows.
@@ -225,7 +231,7 @@ Processed outputs:
 - `paper/replication/small_sample/tables/*.{csv,md,tex}`
 - `data/artifacts/final_audit/artifact_inventory.parquet`
 - `data/artifacts/final_audit/audit_checks.parquet`: current full audit has
-  61 checks, 56 PASS, 5 PARTIAL, and 0 FAIL.
+  64 checks, 61 PASS, 3 PARTIAL, and 0 FAIL.
 - `data/artifacts/final_audit/phase_status.parquet`
 - `data/artifacts/final_audit/summary.json`: current overall status is
   `PARTIAL`.
@@ -300,18 +306,21 @@ Status: partial.
 Capabilities:
 
 - Adds `domain`, `category`, `event_family_id`, `taxonomy_source`, `taxonomy_confidence`, and `taxonomy_notes`.
+- Adds `is_sports`, `taxonomy_rule_id`, `taxonomy_ambiguous`, `event_family_source`, and `event_family_confidence`.
 - Preserves `event_id`, `title`, `yes_sub_title`, and `no_sub_title`.
-- Defaults `event_family_id` to `event_id`, with `contract_id` fallback when `event_id` is missing.
-- Defaults `domain` and `category` to `unknown`.
-- Supports explicit exact-match `event_id` mapping rules from `configs/taxonomy.yaml`.
-- Writes taxonomy-enriched panel, audit table, and summary JSON.
+- Applies fixed precedence: `exact_event_id > event_family_regex > prefix_regex > title_keyword > default_unknown`.
+- Supports explicit finance, sports, weather, politics, and entertainment prefix/title rules from `configs/taxonomy.yaml`.
+- Uses regex event-family grouping where available, then explicit `event_id` and `contract_id` fallbacks with source/confidence fields.
+- Marks conflicting title-keyword classifications ambiguous rather than silently choosing one.
+- Writes taxonomy-enriched panel, audit table, unknown/ambiguous examples, and summary JSON.
 - Validates that every row has event-family, domain, and category fields.
 
 Limitations:
 
-- No title-based inference is enabled.
-- Current full taxonomy output has `domain = unknown` and `category = unknown` for all rows.
-- Event-family grouping is a conservative proxy, not a final leakage-safe taxonomy.
+- Title-keyword inference is lower confidence and config-only.
+- Current full taxonomy still has 92,904 unknown rows and 1,209 ambiguous rows.
+- Many rows use `event_id` fallback because regex family grouping is available only for configured patterns.
+- Domain-level claims need confidence/ambiguity filters and manual review.
 
 ### `src/predmkt/features/`
 
@@ -331,8 +340,8 @@ Capabilities:
 
 Limitations:
 
-- Domain/category are all unknown until taxonomy mapping is expanded.
-- Event-family is inferred from the taxonomy proxy for all current rows.
+- Domain/category include unknown and ambiguous rows from the Phase 12 taxonomy.
+- Event-family uses regex grouping where available and fallback IDs elsewhere.
 - Liquidity lacks order-book depth, spreads, and executable quote data.
 - Momentum/volatility use transaction prices rather than quote midpoints.
 
@@ -348,13 +357,13 @@ Capabilities:
 - Evaluates raw probabilities from `data/processed/modeling_panel.parquet`.
 - Writes overall, grouped, reliability, calibration, missing-note, and summary artifacts.
 - Uses equal-contract aggregation as the confirmatory default and records aggregation mode in outputs.
-- Writes equal-event-family diagnostics using the current event-family proxy.
+- Writes equal-event-family diagnostics using the Phase 12 event-family field.
 - Allows trade-weighted robustness only when explicitly enabled in metrics config.
 
 Limitations:
 
 - Phase 4 evaluates raw probabilities only; recalibrators and walk-forward model evaluation are not implemented here.
-- Domain/category grouped outputs are not domain-level findings while taxonomy coverage is `unknown`.
+- Domain/category grouped outputs are taxonomy-rule based and remain exploratory without confidence/ambiguity filters and clustered uncertainty.
 - Liquidity/staleness groups use public feature-panel proxies, not executable quote or order-book data.
 
 ### `src/predmkt/plots/`
@@ -390,7 +399,7 @@ Limitations:
 - Manuscript figures require full walk-forward and edge artifacts by default;
   full artifacts are present locally, but manuscript claims still require
   scientific audit and uncertainty analysis.
-- Domain/category plots are omitted while taxonomy coverage is unknown.
+- Domain/category manuscript plots remain exploratory because taxonomy coverage includes lower-confidence title, ambiguous, and unknown rows.
 
 ### `src/predmkt/reports/`
 
@@ -568,14 +577,14 @@ Cannot yet claim:
 - Final recalibration gains with clustered uncertainty.
 - Executable trading profit or final tradable edge.
 - Event-family leakage safety under a final expanded taxonomy.
-- Final manuscript claims from figures/tables until Phase 12-17 blockers are
+- Final manuscript claims from figures/tables until Phase 13-17 blockers are
   resolved or explicitly scoped out.
 
 Required next build steps:
 
-1. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
-2. Harden event-family grouping and rerun leakage diagnostics.
-3. Add clustered uncertainty for raw-vs-recalibrated result tables.
+1. Add clustered uncertainty for raw-vs-recalibrated result tables.
+2. Manually review low-confidence, ambiguous, and unknown taxonomy slices before confirmatory domain claims.
+3. Add event-family clustered handling for inference and robustness.
 4. Add Murphy decomposition and expanded calibration methods, including bin-based
    correction and hierarchical/partially pooled models when taxonomy supports
    them.

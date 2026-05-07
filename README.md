@@ -91,17 +91,22 @@ Add conservative taxonomy fields to the snapshot panel:
 uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
 ```
 
-The taxonomy config currently uses `event_id` as the `event_family_id` proxy and
-sets `domain` and `category` to `unknown` unless an explicit `event_id` rule is
-added. Title-based inference is disabled. The script writes:
+The taxonomy config uses ordered, explicit rules with precedence
+`exact_event_id > event_family_regex > prefix_regex > title_keyword >
+default_unknown`. It adds domain/category, sports flags, taxonomy confidence,
+ambiguity flags, and audited event-family IDs. Regex event-family rules are used
+where available, then `event_id` and `contract_id` fallbacks are labeled
+explicitly. Title-keyword rules are config-only, lower confidence, and
+conflicting title matches are marked ambiguous. The script writes:
 
 ```text
 data/processed/contract_horizon_panel_taxonomy.parquet
 data/processed/contract_horizon_taxonomy_audit.parquet
+data/processed/contract_horizon_taxonomy_examples.parquet
 data/processed/contract_horizon_taxonomy_summary.json
 ```
 
-Do not report domain-level findings until taxonomy coverage has been audited.
+Domain/category findings remain conditional on confidence and ambiguity audits.
 
 Build the modeling feature panel:
 
@@ -118,10 +123,10 @@ data/processed/modeling_panel.parquet
 data/processed/modeling_panel_summary.json
 ```
 
-Current domain/category values are inherited from the taxonomy panel and are
-`unknown` unless explicit taxonomy rules have been added. The feature panel
-includes flags for unknown taxonomy, inferred event-family IDs, missing listing
-timestamps, missing momentum/volatility windows, and missing liquidity inputs.
+Current domain/category values are inherited from the Phase 12 taxonomy panel.
+The feature panel includes flags for unknown or ambiguous taxonomy, fallback
+event-family IDs, missing listing timestamps, missing momentum/volatility
+windows, and missing liquidity inputs.
 
 Evaluate raw Kalshi probabilities:
 
@@ -230,8 +235,10 @@ data/processed/walkforward_split_integrity.parquet
 data/processed/walkforward_split_summary.json
 ```
 
-The current event-family identifier is still a conservative `event_id` proxy for
-most rows, so leakage diagnostics are useful but not a final family taxonomy.
+Current event-family identifiers are audited but still mixed: regex grouping is
+used where configured, and explicit `event_id` or `contract_id` fallbacks are
+labeled where stronger grouping is unavailable. Leakage diagnostics are useful,
+but clustered confirmatory inference remains Phase 13.
 
 Use simple recalibrators from Python:
 
@@ -257,8 +264,9 @@ uv run python scripts/fit_walkforward.py --config configs/models.yaml
 The evaluator trains each configured calibrator on `train` + `validation` rows
 from each fold, then removes any fit row whose outcome was not resolved by that
 fold's test start. Raw and recalibrated models are scored on identical future
-test row IDs. Event-family overlaps are reported but not filtered because the
-current `event_family_id` remains a conservative proxy.
+test row IDs. Event-family overlaps are reported but not filtered; current
+`event_family_id` values combine audited regex grouping with explicit event and
+contract fallbacks, while clustered handling is deferred to Phase 13.
 
 The script writes:
 
@@ -365,9 +373,10 @@ paper/robustness/tables/
 ```
 
 These outputs compare saved-result snapshot-method slices, liquidity filters,
-domain-exclusion availability, and alternative fee/spread/slippage/lockup
-assumptions. They are labeled non-confirmatory. Domain/category exclusion checks
-currently report `not_applicable` when taxonomy coverage is all `unknown`.
+domain-exclusion sensitivity, and alternative fee/spread/slippage/lockup
+assumptions. They are labeled non-confirmatory. Domain/category exclusions use
+the Phase 12 rule-based taxonomy where available and report `not_applicable`
+only if configured fields are unavailable or all unknown in the input artifact.
 Friction checks remain simulated EV screens because quote depth, historical
 executability, and order-book costs are not available in the current public
 data.

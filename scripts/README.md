@@ -8,7 +8,7 @@ Current data-build scripts:
 
 - `build_interim_kalshi.py`: immutable raw Kalshi Parquet to cleaned interim tables.
 - `build_snapshot_panel.py`: cleaned interim tables to contract-horizon snapshot panel.
-- `build_taxonomy_panel.py`: snapshot panel plus cleaned contract metadata to taxonomy-enriched panel and taxonomy audit outputs.
+- `build_taxonomy_panel.py`: snapshot panel plus cleaned contract metadata to the Phase 12 taxonomy-enriched panel, using ordered exact-event, prefix, title-keyword, and event-family regex rules with audit outputs.
 - `build_feature_panel.py`: taxonomy-enriched panel plus cleaned trades/contracts to the modeling feature panel.
 - `evaluate_raw.py`: modeling feature panel to raw baseline forecast metrics under `data/artifacts/raw_baseline/`.
 - `plot_raw_baseline.py`: raw baseline metric artifacts to pandas/matplotlib PNG and SVG diagnostic figures under `data/artifacts/raw_baseline/figures/`.
@@ -19,6 +19,6 @@ Current data-build scripts:
 - `run_edge_sim.py`: walk-forward predictions plus modeling-panel metadata to conservative taker-only YES-side edge screens under configurable fee, spread, slippage, and capital-lockup assumptions.
 - `make_figures.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready figures under `paper/figures/`.
 - `make_tables.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready CSV, Markdown, and LaTeX tables under `paper/tables/`.
-- `run_robustness.py`: saved full-run artifacts to separately labeled non-confirmatory robustness tables for snapshot methods, liquidity filters, domain-exclusion availability, and friction assumptions.
+- `run_robustness.py`: saved full-run artifacts to separately labeled non-confirmatory robustness tables for snapshot methods, liquidity filters, domain-exclusion sensitivity, and friction assumptions.
 - `run_small_sample_pipeline.py`: deterministic small-sample end-to-end replication command path from cleaned interim data through paper figures/tables; supports `--dry-run` for command-order verification.
 - `audit_final_artifacts.py`: Phase 11 reporting-only audit of saved Phase 2-10 artifacts and data semantics, writing PASS/PARTIAL/FAIL checks under `data/artifacts/final_audit/` and `docs/audits/`.
