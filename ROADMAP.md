@@ -220,3 +220,181 @@ Add robustness checks and a single reproducible command path for the paper outpu
 - A documented command can reproduce the main small-sample pipeline.
 - Robustness checks compare snapshot methods, liquidity filters, domain exclusions, and friction assumptions.
 - Limitations around data availability, quote depth, and executability are documented.
+
+## Remaining Work Before Final Deployment
+
+### Audit verdict
+The Phase 0-10 codebase is a functional, tested, config-driven Kalshi v1
+pipeline for contract-horizon snapshots, raw metrics, walk-forward
+recalibration, simulated edge screens, manuscript outputs, robustness
+diagnostics, and small-sample replication.
+
+It is **partial for final deployment** under `PROJECT_BRIEF.md`. The current
+pipeline is not yet the final publishable research package because several
+brief-level requirements remain intentionally partial or absent:
+
+- final taxonomy/domain coverage;
+- audited event-family clustering;
+- clustered uncertainty and confidence intervals;
+- hierarchical or partially pooled calibration;
+- Murphy reliability/resolution/uncertainty decomposition;
+- full alternate-method robustness reruns;
+- executable quote/depth support;
+- NO-side support from observed NO prices;
+- final artifact and scientific-readiness audit.
+
+The following phases are required before final publishable claims. They do not
+invalidate Phases 0-10; they extend the implemented foundation into a final
+research-grade deployment.
+
+## Phase 11 — Final scientific audit and data semantics
+
+### Goal
+Convert the current full artifact chain into an audited, defensible research
+result.
+
+### Deliverables
+- Audit `resolution_ts` / `close_time` assumptions and voided, delisted, or
+  ambiguous-resolution handling.
+- Produce `docs/audits/final_data_semantics.md`.
+- Add artifact-level validation reports for snapshots, splits, predictions,
+  edge outputs, and manuscript tables.
+- Confirm no raw-data mutation, no look-ahead leakage, no accidental trade
+  weighting, and no unsupported edge claims.
+
+### Done when
+- Full Phase 2-10 artifacts have a PASS/PARTIAL/FAIL audit.
+- Any remaining semantic uncertainty is explicitly marked non-confirmatory.
+- README, TASK_LOG, CURRENT_CAPABILITIES, and manuscript limitation tables agree
+  on the audit status.
+
+## Phase 12 — Taxonomy and event-family hardening
+
+### Goal
+Replace placeholder taxonomy with auditable event-family, domain, and category
+coverage.
+
+### Deliverables
+- Expand explicit taxonomy rules for `domain`, `category`, sports/non-sports,
+  and event-family grouping.
+- Add coverage reports, ambiguity flags, and unknown-rate summaries.
+- Rebuild split leakage diagnostics using hardened event-family IDs.
+- Add tests for mapping precedence, ambiguity handling, fallback behavior, and
+  no row drops.
+
+### Done when
+- Domain/category are no longer entirely `unknown`, or the roadmap explicitly
+  restricts final claims to overall/horizon/liquidity/staleness only.
+- Event-family leakage checks and clustered inference use an audited grouping
+  field.
+- Domain/sports robustness checks are computed only where taxonomy coverage is
+  sufficient; otherwise they emit explicit `not_applicable` artifacts.
+
+## Phase 13 — Confirmatory inference and uncertainty
+
+### Goal
+Attach uncertainty estimates to all raw-vs-recalibrated claims.
+
+### Deliverables
+- Cluster bootstrap by audited event family or contract family.
+- Paired score-difference confidence intervals for Brier score, log loss, and
+  ECE.
+- Calibration intercept/slope confidence intervals.
+- Multiple-comparison control across horizon, domain, liquidity, and staleness
+  slices.
+- Optional Diebold-Mariano-style paired loss diagnostics for forecast-score
+  comparisons.
+
+### Done when
+- Manuscript score tables include confidence intervals, effect sizes, and
+  effective cluster counts.
+- No iid trade bootstrap is used for confirmatory market-level inference.
+- Uncertainty outputs are reproducible from configs and saved result artifacts.
+
+## Phase 14 — Expanded calibration methods and decompositions
+
+### Goal
+Complete the recalibration method ladder described in `PROJECT_BRIEF.md`.
+
+### Deliverables
+- Bin-based reliability correction baseline.
+- Murphy reliability/resolution/uncertainty decomposition where feasible.
+- Hierarchical or partially pooled logistic recalibrator with horizon/domain
+  effects, clearly marked experimental until taxonomy is hardened.
+- Walk-forward evaluation support for the new methods.
+
+### Done when
+- New models use the same fold assignments, test rows, and metric functions as
+  raw/Platt/beta/isotonic.
+- Model outputs are saved with fit status, config hash, parameters, and failure
+  modes.
+- Hierarchical/domain models are not used for confirmatory domain claims until
+  Phase 12 taxonomy coverage passes audit.
+
+## Phase 15 — Full robustness reruns
+
+### Goal
+Move robustness beyond saved-artifact slices and small-sample variants.
+
+### Deliverables
+- Full alternate snapshot-method reruns: last trade, short-window VWAP, and
+  longer-window VWAP.
+- Stricter stale-price and liquidity-filter reruns.
+- Equal-contract vs. equal-event-family vs. explicitly trade-weighted
+  robustness.
+- Sports/domain exclusions once taxonomy supports them.
+- Mutually exclusive event-family exclusion, clustering, or sensitivity
+  robustness.
+
+### Done when
+- Robustness outputs are separated from confirmatory outputs and summarized in
+  manuscript appendix tables.
+- Unavailable checks fail clearly or produce explicit `not_applicable`
+  artifacts.
+- Any finding that survives only optimistic assumptions is labeled fragile
+  rather than tradable.
+
+## Phase 16 — Edge executability upgrade
+
+### Goal
+Distinguish conservative expected-value screens from executable trading
+evidence.
+
+### Deliverables
+- Versioned fee assumptions by date if historical fee schedules can be
+  documented.
+- Direct quote/order-book ingestion path if public data becomes available.
+- Observed NO-side price support only when explicit NO prices exist.
+- Capacity/liquidity constraints and cumulative simulated PnL figures labeled
+  assumption-dependent.
+- Stronger stale-price and liquidity gates for edge screens.
+
+### Done when
+- Edge claims remain “simulated screens” unless executable quote/depth data
+  supports stronger language.
+- Friction-layering and PnL outputs are reproducible from saved artifacts.
+- NO-side opportunities are never synthesized from complementarity unless the
+  data directly supports the price side.
+
+## Phase 17 — Final reproducibility and deployment gate
+
+### Goal
+Make the project publication/deployment ready.
+
+### Deliverables
+- Run registry with git commit, dirty flag, config hash, data snapshot/hash,
+  start/end time, and artifact paths.
+- CI-ready test command set.
+- Frozen final configs for the paper run.
+- One documented full-run command and one small-sample replication command.
+- Final `docs/final_readiness_audit.md`.
+
+### Done when
+- `uv run ruff check .`, `uv run pytest`, and final artifact audits pass.
+- README, TASK_LOG, CURRENT_CAPABILITIES, ROADMAP, and paper outputs agree on
+  what is final vs. exploratory.
+- Every new confirmatory artifact records config hash, source artifact paths,
+  run label, and limitations.
+- Final claims remain equal-contract or equal-event-family by default;
+  trade-weighted outputs remain explicitly labeled robustness checks.
+- No remaining blocker exists for the stated publishable claims.

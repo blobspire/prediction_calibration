@@ -42,6 +42,7 @@ Status labels:
 | Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
 | Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need scientific audit and clustered uncertainty. |
 | Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions are not substantive while taxonomy is all `unknown`. |
+| Final deployment readiness | partial | Phase 0-10 implementation is a working v1 research pipeline with full local artifacts and tests passing. | Phases 11-17 in `ROADMAP.md` remain required before final publishable claims. |
 
 ## Current Commands
 
@@ -555,12 +556,19 @@ Required next build steps:
 2. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
 3. Audit the full walk-forward, edge-simulation, manuscript, and robustness artifacts.
 4. Add clustered uncertainty for raw-vs-recalibrated result tables.
-5. Expand robustness to full alternate snapshot-method reruns if the current
+5. Add Murphy decomposition and expanded calibration methods, including bin-based
+   correction and hierarchical/partially pooled models when taxonomy supports
+   them.
+6. Expand robustness to full alternate snapshot-method reruns if the current
    small-sample variants materially change conclusions.
+7. Upgrade edge executability only if quote/depth, observed NO-side prices, or
+   documented fee-regime data become available.
+8. Add a final reproducibility/run-registry gate before any publishable claims.
 
 ## Current Phase Recommendation
 
-Next recommended task: audit the full Phase 7-10 artifacts, then add clustered
-uncertainty for raw-vs-recalibrated result tables.
+Next recommended task: start ROADMAP Phase 11 by auditing final data semantics
+and the full Phase 2-10 artifact chain, then proceed to taxonomy hardening and
+clustered uncertainty.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.
