@@ -17,3 +17,5 @@ Current data-build scripts:
 - `build_walkforward_splits.py`: processed contract-horizon/modeling panel to strict forecast-time expanding walk-forward split assignments and integrity diagnostics.
 - `fit_walkforward.py`: modeling panel plus walk-forward splits to raw-vs-recalibrated fold predictions, metrics, calibrator fits, leakage diagnostics, and summary artifacts.
 - `run_edge_sim.py`: walk-forward predictions plus modeling-panel metadata to conservative taker-only YES-side edge screens under configurable fee, spread, slippage, and capital-lockup assumptions.
+- `make_figures.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready figures under `paper/figures/`.
+- `make_tables.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready CSV, Markdown, and LaTeX tables under `paper/tables/`.

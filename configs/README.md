@@ -16,3 +16,4 @@ Current configs:
 - `validation.yaml`: forecast-time expanding walk-forward split inputs, outputs, monthly train/validation/test windows, event-family fallback policy, and strict overlap leakage rule.
 - `models.yaml`: reusable recalibrator defaults, enabled simple calibrators, probability/outcome columns, prediction clipping epsilon, fit controls, and walk-forward evaluation artifact settings.
 - `backtest.yaml`: conservative taker-only YES-side edge-screen inputs, output directory, Kalshi-style fee proxy, capital-lockup assumption, optional staleness/liquidity filters, and fee/spread/slippage friction tiers.
+- `reporting.yaml`: manuscript figure/table artifact inputs, `paper/` output directories, horizon/model ordering, figure/table formats, metric scope, and explicit full-vs-smoke run label.

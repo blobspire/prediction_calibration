@@ -322,6 +322,33 @@ public Becker/Kalshi-derived panel does not include historical executable
 bid/ask quotes or order-book depth. NO-side candidates are not synthesized from
 `1 - YES price`.
 
+Create manuscript-ready figures and tables from saved full-run artifacts:
+
+```bash
+uv run python scripts/make_figures.py --config configs/reporting.yaml
+uv run python scripts/make_tables.py --config configs/reporting.yaml
+```
+
+The reporting config defaults to full artifact directories:
+
+```text
+data/artifacts/raw_baseline/
+data/artifacts/walkforward/
+data/artifacts/edge_sim/
+```
+
+and writes to:
+
+```text
+paper/figures/
+paper/tables/
+```
+
+These scripts do not fit models or recompute edge screens. They fail clearly if
+the full walk-forward or edge artifacts are missing. For a deliberate draft run
+from the current smoke artifacts, pass `--artifact-run-label smoke` plus
+`--walkforward-dir` and `--edge-dir` overrides.
+
 Use the tests to verify the package imports and schema utilities:
 
 ```bash
