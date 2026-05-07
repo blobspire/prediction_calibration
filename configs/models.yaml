@@ -1,0 +1,51 @@
+inputs:
+  panel_path: data/processed/modeling_panel.parquet
+  splits_path: data/processed/walkforward_splits.parquet
+
+outputs:
+  artifact_dir: data/artifacts/walkforward
+
+columns:
+  probability_column: raw_probability
+  outcome_column: observed_outcome
+  resolution_column: resolution_ts
+  horizon_column: horizon_name
+  event_family_column: event_family_id
+
+calibrators:
+  enabled:
+    - raw
+    - platt
+    - beta
+    - isotonic
+
+prediction:
+  epsilon: 0.000001
+
+fit:
+  min_rows: 20
+  max_iterations: 100
+  tolerance: 0.00000001
+  ridge: 0.000000001
+
+evaluation:
+  fit_splits:
+    - train
+    - validation
+  fit_label_policy: resolved_by_test_start
+  event_family_policy: report_only
+  limit_folds:
+  limit_rows:
+
+metrics:
+  log_loss_epsilon: 0.000001
+  reliability_bin_count: 10
+  reliability_min_bin_count: 30
+  calibration_min_rows: 50
+  calibration_max_iterations: 50
+  calibration_tolerance: 0.00000001
+  groupings:
+    - name: overall
+      columns: []
+    - name: horizon
+      columns: [horizon_name]

@@ -1,0 +1,2 @@
+rule_name,status,reason,input_row_count,output_row_count,excluded_row_count,analysis_label,non_confirmatory
+exclude_unknown_domain,not_applicable,domain_and_category_are_all_unknown,1970448,0,0,robustness_non_confirmatory,True

@@ -24,8 +24,10 @@ python -m pytest
 
 The current repository supports raw schema inspection, Kalshi interim cleaning,
 contract-horizon snapshot construction, taxonomy enrichment, feature-panel
-construction, and raw baseline forecast metrics. Recalibration models,
-walk-forward evaluation, and edge simulation will be added in later phases.
+construction, raw baseline forecast metrics, and strict walk-forward split
+construction. The codebase also includes reusable simple recalibrators.
+Walk-forward raw-vs-recalibrated model evaluation is available for simple
+calibrators. Edge simulation will be added in a later phase.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -206,11 +208,190 @@ close timestamp semantics, methodology-refinement comparison, and a summary
 dashboard. These are slide-ready raw-baseline visuals, not final
 walk-forward/recalibrated-model results.
 
-Expected workflow once later phases exist:
+Build strict walk-forward validation splits:
+
+```bash
+uv run python scripts/build_walkforward_splits.py --config configs/validation.yaml
+```
+
+The validation config uses monthly expanding windows split by `forecast_ts`, not
+row order or resolution time. The default train window starts at the earliest
+available forecast timestamp, uses a one-month validation block immediately
+before each one-month test block, starts testing in `2024-01`, and excludes an
+incomplete final test month. Event-family leakage checks use `event_family_id`
+when present and fall back to `event_id` for raw snapshot panels.
+
+The script writes:
+
+```text
+data/processed/walkforward_splits.parquet
+data/processed/walkforward_split_integrity.parquet
+data/processed/walkforward_split_summary.json
+```
+
+The current event-family identifier is still a conservative `event_id` proxy for
+most rows, so leakage diagnostics are useful but not a final family taxonomy.
+
+Use simple recalibrators from Python:
+
+```python
+from predmkt.calibration import load_models_config, make_configured_calibrators
+
+config = load_models_config("configs/models.yaml")
+calibrators = make_configured_calibrators(config)
+```
+
+`configs/models.yaml` enables `raw`, `platt`, `beta`, and `isotonic`
+calibrators by default. Each exposes `fit(probabilities, outcomes)` and
+`predict_proba(probabilities)`, and every prediction is clipped to the configured
+epsilon, currently `0.000001`. These are reusable Phase 6 model components only:
+they can be used directly by the walk-forward evaluator below.
+
+Run walk-forward raw versus recalibrated evaluation:
 
 ```bash
 uv run python scripts/fit_walkforward.py --config configs/models.yaml
+```
+
+The evaluator trains each configured calibrator on `train` + `validation` rows
+from each fold, then removes any fit row whose outcome was not resolved by that
+fold's test start. Raw and recalibrated models are scored on identical future
+test row IDs. Event-family overlaps are reported but not filtered because the
+current `event_family_id` remains a conservative proxy.
+
+The script writes:
+
+```text
+data/artifacts/walkforward/predictions.parquet
+data/artifacts/walkforward/fold_metrics.parquet
+data/artifacts/walkforward/aggregate_metrics.parquet
+data/artifacts/walkforward/calibrator_fits.parquet
+data/artifacts/walkforward/event_family_leakage.parquet
+data/artifacts/walkforward/summary.json
+```
+
+For a quick smoke run on the first fold:
+
+```bash
+uv run python scripts/fit_walkforward.py \
+  --config configs/models.yaml \
+  --limit-folds 1 \
+  --artifact-dir data/artifacts/walkforward_smoke
+```
+
+The default edge config expects the full walk-forward prediction artifact. To
+test the edge workflow against the one-fold smoke output instead:
+
+```bash
+uv run python scripts/run_edge_sim.py \
+  --config configs/backtest.yaml \
+  --predictions data/artifacts/walkforward_smoke/predictions.parquet \
+  --artifact-dir data/artifacts/edge_sim_smoke
+```
+
+Run conservative fee-aware YES-side edge screens:
+
+```bash
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
+```
+
+The edge simulator reads saved walk-forward predictions and the modeling panel,
+then compares configurable friction tiers:
+
+```text
+fee_only
+fee_spread
+fee_spread_slippage
+```
+
+It writes:
+
+```text
+data/artifacts/edge_sim/edge_candidates.parquet
+data/artifacts/edge_sim/edge_summary_by_tier.parquet
+data/artifacts/edge_sim/edge_summary_by_model_tier.parquet
+data/artifacts/edge_sim/excluded_rows.parquet
+data/artifacts/edge_sim/summary.json
+```
+
+These are simulated expected-value screens, not executable trading profits or
+trade recommendations. The first implementation is taker-only and YES-side
+only. It uses a configurable Kalshi-style fee proxy, a 5% annual capital-lockup
+charge by default, and conservative spread/slippage haircuts because the current
+public Becker/Kalshi-derived panel does not include historical executable
+bid/ask quotes or order-book depth. NO-side candidates are not synthesized from
+`1 - YES price`.
+
+Create manuscript-ready figures and tables from saved full-run artifacts:
+
+```bash
+uv run python scripts/make_figures.py --config configs/reporting.yaml
+uv run python scripts/make_tables.py --config configs/reporting.yaml
+```
+
+The reporting config defaults to full artifact directories:
+
+```text
+data/artifacts/raw_baseline/
+data/artifacts/walkforward/
+data/artifacts/edge_sim/
+```
+
+and writes to:
+
+```text
+paper/figures/
+paper/tables/
+```
+
+These scripts do not fit models or recompute edge screens. They fail clearly if
+the full walk-forward or edge artifacts are missing. For a deliberate draft run
+from the current smoke artifacts, pass `--artifact-run-label smoke` plus
+`--walkforward-dir` and `--edge-dir` overrides.
+
+Run non-confirmatory robustness diagnostics from saved full-run artifacts:
+
+```bash
+uv run python scripts/run_robustness.py --config configs/robustness.yaml
+```
+
+The robustness config reads the full modeling panel, walk-forward artifacts, and
+edge artifacts, then writes separate diagnostic outputs under:
+
+```text
+data/artifacts/robustness/
+paper/robustness/tables/
+```
+
+These outputs compare saved-result snapshot-method slices, liquidity filters,
+domain-exclusion availability, and alternative fee/spread/slippage/lockup
+assumptions. They are labeled non-confirmatory. Domain/category exclusion checks
+currently report `not_applicable` when taxonomy coverage is all `unknown`.
+Friction checks remain simulated EV screens because quote depth, historical
+executability, and order-book costs are not available in the current public
+data.
+
+Run the deterministic small-sample paper replication path:
+
+```bash
+uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml
+```
+
+For a cheap command-order check without producing data artifacts:
+
+```bash
+uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml --dry-run
+```
+
+The small-sample path starts from cleaned interim Kalshi tables, not
+`data/raw/`, and runs snapshot, taxonomy, feature, raw-baseline, split,
+walk-forward, edge, figure, and table stages with deterministic limits. It
+writes separately from primary outputs:
+
+```text
+data/processed/replication_small/
+data/artifacts/replication/small_sample/
+paper/replication/small_sample/
 ```
 
 Use the tests to verify the package imports and schema utilities:

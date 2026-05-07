@@ -1,0 +1,95 @@
+{
+  "effective_config": {
+    "config_path": "configs/reporting.yaml",
+    "config_sha256": "d532ac0b5b8b73ff8851ca670109d7bc0e83c19a364a0c72d4ca041d83254164",
+    "inputs": {
+      "edge_artifact_dir": "data/artifacts/replication/small_sample/edge_sim",
+      "raw_baseline_artifact_dir": "data/artifacts/replication/small_sample/raw_baseline",
+      "walkforward_artifact_dir": "data/artifacts/replication/small_sample/walkforward"
+    },
+    "outputs": {
+      "figure_dir": "paper/figures",
+      "table_dir": "paper/replication/small_sample/tables"
+    },
+    "reporting": {
+      "aggregation_mode": "equal_contract",
+      "artifact_run_label": "small_sample",
+      "dpi": 300,
+      "figure_formats": [
+        "png",
+        "svg",
+        "pdf"
+      ],
+      "horizon_order": [
+        "30d",
+        "14d",
+        "7d",
+        "3d",
+        "1d",
+        "6h",
+        "1h",
+        "15m",
+        "close"
+      ],
+      "metric_scope": "pooled_equal_contract",
+      "model_order": [
+        "raw",
+        "platt",
+        "beta",
+        "isotonic"
+      ],
+      "reliability_bin_count": 10,
+      "reliability_min_bin_count": 30,
+      "table_formats": [
+        "csv",
+        "markdown",
+        "latex"
+      ]
+    }
+  },
+  "limitations": [
+    "Manuscript outputs consume saved result artifacts and do not recompute core models.",
+    "Domain/category manuscript outputs are omitted while taxonomy coverage remains unknown.",
+    "Edge outputs are simulated expected-value screens, not executable trading profits.",
+    "Artifact run label is small_sample."
+  ],
+  "source_artifacts": {
+    "edge_summary": "data/artifacts/replication/small_sample/edge_sim/summary.json",
+    "edge_summary_by_model_tier": "data/artifacts/replication/small_sample/edge_sim/edge_summary_by_model_tier.parquet",
+    "edge_summary_by_tier": "data/artifacts/replication/small_sample/edge_sim/edge_summary_by_tier.parquet",
+    "raw_baseline_reliability_bins": "data/artifacts/replication/small_sample/raw_baseline/reliability_bins.parquet",
+    "raw_baseline_summary": "data/artifacts/replication/small_sample/raw_baseline/summary.json",
+    "walkforward_aggregate_metrics": "data/artifacts/replication/small_sample/walkforward/aggregate_metrics.parquet",
+    "walkforward_fold_metrics": "data/artifacts/replication/small_sample/walkforward/fold_metrics.parquet",
+    "walkforward_predictions": "data/artifacts/replication/small_sample/walkforward/predictions.parquet",
+    "walkforward_summary": "data/artifacts/replication/small_sample/walkforward/summary.json"
+  },
+  "table_dir": "paper/replication/small_sample/tables",
+  "table_paths": {
+    "artifact_source_limitations": [
+      "paper/replication/small_sample/tables/artifact_source_limitations.csv",
+      "paper/replication/small_sample/tables/artifact_source_limitations.md",
+      "paper/replication/small_sample/tables/artifact_source_limitations.tex"
+    ],
+    "calibration_intercept_slope": [
+      "paper/replication/small_sample/tables/calibration_intercept_slope.csv",
+      "paper/replication/small_sample/tables/calibration_intercept_slope.md",
+      "paper/replication/small_sample/tables/calibration_intercept_slope.tex"
+    ],
+    "edge_friction_sensitivity": [
+      "paper/replication/small_sample/tables/edge_friction_sensitivity.csv",
+      "paper/replication/small_sample/tables/edge_friction_sensitivity.md",
+      "paper/replication/small_sample/tables/edge_friction_sensitivity.tex"
+    ],
+    "horizon_score_comparison": [
+      "paper/replication/small_sample/tables/horizon_score_comparison.csv",
+      "paper/replication/small_sample/tables/horizon_score_comparison.md",
+      "paper/replication/small_sample/tables/horizon_score_comparison.tex"
+    ],
+    "overall_score_comparison": [
+      "paper/replication/small_sample/tables/overall_score_comparison.csv",
+      "paper/replication/small_sample/tables/overall_score_comparison.md",
+      "paper/replication/small_sample/tables/overall_score_comparison.tex"
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+inputs:
+  predictions_path: data/artifacts/walkforward/predictions.parquet
+  panel_path: data/processed/modeling_panel.parquet
+
+outputs:
+  artifact_dir: data/artifacts/edge_sim
+
+columns:
+  row_id_column: row_id
+  entry_price_column: raw_probability
+  predicted_probability_column: predicted_probability
+  outcome_column: observed_outcome
+  forecast_column: forecast_ts
+  resolution_column: resolution_ts
+  model_column: model_name
+  fold_column: fold_id
+  contract_column: contract_id
+  horizon_column: horizon_name
+  event_family_column: event_family_id
+  staleness_column: price_staleness_seconds
+  liquidity_column: public_liquidity_proxy
+  cumulative_volume_column: cumulative_volume_to_forecast
+
+screen:
+  trade_side: yes_only
+  allow_synthetic_no: false
+  min_net_edge: 0.02
+  limit_rows:
+
+fee:
+  formula: kalshi_proxy
+  fee_rate: 0.07
+
+capital_lockup:
+  enabled: true
+  annual_rate: 0.05
+  day_count: 365.25
+
+filters:
+  max_staleness_seconds:
+  min_liquidity_proxy:
+  min_cumulative_volume:
+
+tiers:
+  - name: fee_only
+    spread_cost: 0.0
+    slippage_cost: 0.0
+  - name: fee_spread
+    spread_cost: 0.005
+    slippage_cost: 0.0
+  - name: fee_spread_slippage
+    spread_cost: 0.005
+    slippage_cost: 0.005

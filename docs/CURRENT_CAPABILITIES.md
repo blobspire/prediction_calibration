@@ -1,6 +1,6 @@
 # Current Capabilities
 
-Last updated: 2026-05-05.
+Last updated: 2026-05-07.
 
 This is the project capability registry. It tracks what the codebase can currently do,
 what artifacts exist locally, what is only partial or placeholder, and what must be
@@ -36,12 +36,12 @@ Status labels:
 | Conservative taxonomy layer | partial | Adds `domain`, `category`, `event_family_id`, taxonomy audit, and explicit rule config. | All domain/category values are `unknown`; event family is `event_id` proxy. |
 | Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Domain/category placeholders; liquidity is public trade proxy only; momentum/volatility use transaction prices. |
 | Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs remain taxonomy placeholders until coverage improves. |
-| Phase 5 walk-forward validation | not implemented | Validation package is only a placeholder. | Need forecast-time splits, expanding/rolling windows, event-family leakage checks. |
-| Phase 6 recalibrators | not implemented | Calibration package is only a placeholder. | Need raw/logistic/beta/isotonic interfaces and tests. |
-| Phase 7 walk-forward evaluation | not implemented | No fold-level model evaluation. | Need identical test folds, saved fold artifacts, config hashes, leakage checks. |
-| Phase 8 edge simulation | not implemented | Edge package is only a placeholder. | Need fees, slippage, liquidity/staleness filters, lockup assumptions, conservative labels. |
-| Phase 9 plots/reports | partial | Raw-baseline pandas/matplotlib diagnostic figures can be generated from saved metric artifacts. | Need manuscript-ready figure/table generation for full raw-vs-recalibrated results. |
-| Phase 10 replication/robustness | not implemented | No replication command or robustness configs. | Need end-to-end small pipeline and robustness checks. |
+| Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Later model evaluation must decide whether to filter or group around flagged event-family overlaps; event families remain conservative proxies. |
+| Phase 6 recalibrators | complete | Common fit/predict interface, raw/Platt/beta/isotonic calibrators, model config, registry, bounded predictions, and synthetic tests. | Full walk-forward model evaluation is Phase 7. |
+| Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Clustered inference, hierarchical models, and full-scale audited edge interpretation remain later work. |
+| Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
+| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need scientific audit and clustered uncertainty. |
+| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions are not substantive while taxonomy is all `unknown`. |
 
 ## Current Commands
 
@@ -70,6 +70,22 @@ uv run python scripts/evaluate_raw.py --config configs/metrics.yaml
 uv run python scripts/plot_raw_baseline.py --config configs/figures.yaml
 uv run python scripts/audit_raw_baseline.py --config configs/raw_baseline_audit.yaml
 uv run python scripts/make_presentation_figures.py --config configs/presentation.yaml
+uv run python scripts/build_walkforward_splits.py --config configs/validation.yaml
+uv run python scripts/fit_walkforward.py --config configs/models.yaml
+uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
+uv run python scripts/make_figures.py --config configs/reporting.yaml
+uv run python scripts/make_tables.py --config configs/reporting.yaml
+uv run python scripts/run_robustness.py --config configs/robustness.yaml
+uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml
+```
+
+Reusable recalibrators are available through the Python registry:
+
+```python
+from predmkt.calibration import load_models_config, make_configured_calibrators
+
+config = load_models_config("configs/models.yaml")
+calibrators = make_configured_calibrators(config)
 ```
 
 Run tests:
@@ -78,10 +94,12 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `44 passed`.
-`uv run ruff check .` also passes. The full raw baseline evaluation completed
-on 554,249 modeling rows, and the near-close audit completed on the same
-panel.
+Latest local verification used `uv run pytest` and passed `85 passed`.
+`uv run ruff check .` also passes. Targeted `mypy` checks pass for
+`src/predmkt/edge`, `src/predmkt/plots/manuscript.py`, and
+`src/predmkt/reports/manuscript.py`. Full walk-forward, edge-simulation,
+manuscript, robustness, and small-sample replication artifacts now exist under
+their configured output roots.
 
 ## Config Registry
 
@@ -94,9 +112,12 @@ panel.
 | `configs/figures.yaml` | partial | Raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI. |
 | `configs/raw_baseline_audit.yaml` | partial | Diagnostics for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics. |
 | `configs/presentation.yaml` | partial | Slide-ready raw-baseline figure inputs, presentation output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values. |
-| `configs/models.yaml` | not implemented | Needed for model/recalibrator settings. |
-| `configs/validation.yaml` | not implemented | Needed for walk-forward split settings. |
-| `configs/backtest.yaml` | not implemented | Needed for edge simulation assumptions. |
+| `configs/models.yaml` | complete | Recalibrator input columns, enabled raw/Platt/beta/isotonic model names, prediction clipping epsilon, fit controls, metric settings, fit-label policy, and walk-forward artifact directory. |
+| `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
+| `configs/backtest.yaml` | complete | Conservative YES-side edge-screen inputs, fee proxy, spread/slippage haircuts, capital-lockup charge, optional liquidity/staleness filters, and artifact directory. |
+| `configs/reporting.yaml` | complete | Manuscript figure/table input artifact dirs, `paper/` output dirs, model/horizon order, figure/table formats, metric scope, and explicit full-vs-smoke run label. |
+| `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, explicit unavailable-domain handling, friction scenarios, and small snapshot variants. |
+| `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs, limits, run label, and separate processed/artifact/paper output roots. |
 
 ## Local Data Artifacts
 
@@ -118,12 +139,12 @@ Interim outputs:
 
 Processed outputs:
 
-- `data/processed/contract_horizon_panel.parquet`: 554,249 rows.
+- `data/processed/contract_horizon_panel.parquet`: 695,940 rows.
 - `data/processed/contract_horizon_panel_summary.json`
-- `data/processed/contract_horizon_panel_taxonomy.parquet`: 554,249 rows.
+- `data/processed/contract_horizon_panel_taxonomy.parquet`: 695,940 rows.
 - `data/processed/contract_horizon_taxonomy_audit.parquet`
 - `data/processed/contract_horizon_taxonomy_summary.json`
-- `data/processed/modeling_panel.parquet`: 554,249 rows.
+- `data/processed/modeling_panel.parquet`: 695,940 rows.
 - `data/processed/modeling_panel_summary.json`
 - `data/artifacts/raw_baseline/metrics_overall.parquet`
 - `data/artifacts/raw_baseline/metrics_by_group.parquet`
@@ -151,6 +172,53 @@ Processed outputs:
 - `data/artifacts/presentation/figures/presentation_*.png`
 - `data/artifacts/presentation/figures/presentation_*.svg`
 - `data/artifacts/presentation/figures/presentation_figure_summary.json`
+- `data/processed/walkforward_splits.parquet`: 4,094,883 fold/split assignment rows from 22 monthly expanding folds.
+- `data/processed/walkforward_split_integrity.parquet`
+- `data/processed/walkforward_split_summary.json`
+- `data/artifacts/walkforward_smoke/predictions.parquet`: one-fold smoke output, not confirmatory.
+- `data/artifacts/walkforward_smoke/fold_metrics.parquet`
+- `data/artifacts/walkforward_smoke/aggregate_metrics.parquet`
+- `data/artifacts/walkforward_smoke/calibrator_fits.parquet`
+- `data/artifacts/walkforward_smoke/event_family_leakage.parquet`
+- `data/artifacts/walkforward_smoke/summary.json`
+- `data/artifacts/walkforward/predictions.parquet`: full 22-fold walk-forward output with 1,970,448 model prediction rows.
+- `data/artifacts/walkforward/fold_metrics.parquet`: 880 fold-level metric rows.
+- `data/artifacts/walkforward/aggregate_metrics.parquet`: 80 pooled and fold-macro metric rows.
+- `data/artifacts/walkforward/calibrator_fits.parquet`
+- `data/artifacts/walkforward/event_family_leakage.parquet`: 318 reported fit/test event-family overlaps.
+- `data/artifacts/walkforward/summary.json`
+- `data/artifacts/edge_sim_smoke/edge_candidates.parquet`: one-fold smoke edge-screen output, not confirmatory.
+- `data/artifacts/edge_sim_smoke/edge_summary_by_tier.parquet`
+- `data/artifacts/edge_sim_smoke/edge_summary_by_model_tier.parquet`
+- `data/artifacts/edge_sim_smoke/excluded_rows.parquet`
+- `data/artifacts/edge_sim_smoke/summary.json`
+- `data/artifacts/edge_sim/edge_candidates.parquet`: full edge-screen output with 5,911,344 candidate rows.
+- `data/artifacts/edge_sim/edge_summary_by_tier.parquet`
+- `data/artifacts/edge_sim/edge_summary_by_model_tier.parquet`
+- `data/artifacts/edge_sim/excluded_rows.parquet`
+- `data/artifacts/edge_sim/summary.json`
+- `paper/figures/figure_manifest.json`
+- `paper/figures/manuscript_*.{png,svg,pdf}`
+- `paper/tables/table_manifest.json`
+- `paper/tables/*.csv`
+- `paper/tables/*.md`
+- `paper/tables/*.tex`
+- `data/artifacts/robustness/summary.json`: full robustness run over 1,970,448 saved prediction rows.
+- `data/artifacts/robustness/snapshot_method_slices.parquet`
+- `data/artifacts/robustness/liquidity_filter_sensitivity.parquet`
+- `data/artifacts/robustness/domain_exclusion_status.parquet`: records domain/category exclusions as unavailable while taxonomy is all `unknown`.
+- `data/artifacts/robustness/friction_assumption_sensitivity.parquet`
+- `data/artifacts/robustness/snapshot_variant_runs.parquet`: two small-sample snapshot variant summaries.
+- `paper/robustness/tables/*.csv`
+- `paper/robustness/tables/*.md`
+- `data/processed/replication_small/modeling_panel.parquet`: deterministic small-sample replication panel with 8,460 rows.
+- `data/artifacts/replication/small_sample/replication_manifest.json`: all 9 stages completed.
+- `data/artifacts/replication/small_sample/walkforward/predictions.parquet`: 1,636 small-sample walk-forward predictions over 2 evaluated folds.
+- `data/artifacts/replication/small_sample/edge_sim/edge_candidates.parquet`: 4,908 small-sample simulated edge candidate rows.
+- `paper/replication/small_sample/figures/figure_manifest.json`
+- `paper/replication/small_sample/figures/manuscript_*.{png,svg,pdf}`
+- `paper/replication/small_sample/tables/table_manifest.json`
+- `paper/replication/small_sample/tables/*.{csv,md,tex}`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -298,14 +366,19 @@ Capabilities:
   probability distributions, calibration-gap heatmap, balanced-panel
   comparison, orientation checks, close timestamp semantics, methodology
   refinement, and a summary dashboard.
+- Generates manuscript figures from saved full-run artifacts: reliability
+  diagrams, calibration-slope heatmap, score comparison, and edge-friction
+  sensitivity.
 
 Limitations:
 
-- Figures are raw-baseline diagnostics and presentation aids only, not final
-  manuscript styling.
+- Raw-baseline diagnostic and presentation figures are not final manuscript
+  outputs.
 - The near-close audit is diagnostic only and does not select a revised snapshot
   method or stale-price rule.
-- No recalibrated-model, walk-forward, edge, or publication table plots exist yet.
+- Manuscript figures require full walk-forward and edge artifacts by default;
+  full artifacts are present locally, but manuscript claims still require
+  scientific audit and uncertainty analysis.
 - Domain/category plots are omitted while taxonomy coverage is unknown.
 
 ### `src/predmkt/reports/`
@@ -321,21 +394,101 @@ Capabilities:
   cleaned data retains `resolution_ts` but not a separate `close_time` column.
 - Writes machine-readable audit artifacts and an effective config summary under
   `data/artifacts/raw_baseline/audit/`.
+- Generates manuscript score, calibration, edge-friction, and limitation tables
+  from saved full-run artifacts in CSV, Markdown, and LaTeX formats.
+- Writes table manifests with source artifacts and effective reporting config.
+- Generates non-confirmatory robustness tables for snapshot-method slices,
+  liquidity filters, explicit domain-exclusion availability, and friction
+  assumptions.
 
 Limitations:
 
-- Reports are diagnostic only and do not revise the baseline methodology.
-- No manuscript-ready tables or full raw-vs-recalibrated report exists yet.
+- Raw-baseline audit reports are diagnostic only and do not revise the baseline methodology.
+- Manuscript tables require full walk-forward and edge artifacts by default.
+- Robustness tables are sensitivity diagnostics, not replacement confirmatory
+  results.
 
-### Placeholder Packages
+### `src/predmkt/validation/`
 
-Status: not implemented.
+Status: complete for Phase 5 split construction and Phase 7 simple walk-forward
+model evaluation.
 
-- `src/predmkt/validation/`
-- `src/predmkt/calibration/`
-- `src/predmkt/edge/`
+Capabilities:
 
-These packages currently contain only package docstrings and should not be treated as functional.
+- Builds monthly expanding walk-forward folds from `forecast_ts`.
+- Uses one-month validation windows immediately before one-month test windows by default.
+- Starts the default test sequence at `2024-01` and excludes incomplete final test months.
+- Writes row-level split assignments with `fold_id`, `split`, `row_id`, `contract_id`, `horizon`, `forecast_ts`, and `event_family_id`.
+- Validates train timestamps precede validation timestamps and validation timestamps precede test timestamps.
+- Validates no row appears in multiple splits within the same fold.
+- Detects strict event-family overlap across train/validation/test splits.
+- Falls back from `event_family_id` to `event_id` when operating on raw snapshot panels.
+- Evaluates configured raw/Platt/beta/isotonic calibrators on identical future
+  test rows.
+- Fits models only on train+validation rows whose `resolution_ts` is at or
+  before each fold's test start.
+- Writes prediction, fold metric, aggregate metric, calibrator fit,
+  event-family leakage, and summary artifacts.
+- Records config hash, git commit, and git dirty flag when available.
+
+Limitations:
+
+- Strict event-family overlaps are reported, not automatically filtered.
+- Event-family identifiers are still conservative taxonomy proxies until family mapping coverage improves.
+- Phase 7 does not implement clustered inference, hierarchical calibrators,
+  publication-ready plots, or edge simulation.
+
+### `src/predmkt/calibration/`
+
+Status: complete for Phase 6 reusable simple recalibrators.
+
+Capabilities:
+
+- Provides a common `fit(probabilities, outcomes)` and
+  `predict_proba(probabilities)` interface.
+- Provides `RawCalibrator`, `PlattCalibrator`, `BetaCalibrator`, and
+  `IsotonicCalibrator`.
+- Clips every returned prediction to the configured epsilon, currently
+  `0.000001` in `configs/models.yaml`.
+- Uses dependency-free logistic IRLS for Platt and beta calibration.
+- Uses dependency-free pool-adjacent-violators for isotonic calibration.
+- Provides a registry with names `raw`, `platt`, `logistic`, `beta`, and
+  `isotonic`.
+- Loads enabled calibrators from `configs/models.yaml`.
+- Falls back to clipped raw probabilities on degenerate Platt/beta folds with
+  explicit statuses.
+- Treats negative Platt slopes as invalid for confirmatory monotone
+  recalibration and falls back to raw.
+
+Limitations:
+
+- These are model components; walk-forward prediction and raw-vs-recalibrated
+  score artifacts are written by `src/predmkt/validation/`.
+- No hierarchical or partially pooled calibrator exists.
+- Hyperparameter selection over folds remains Phase 7.
+
+### `src/predmkt/edge/`
+
+Status: complete for Phase 8 conservative expected-value screens.
+
+Capabilities:
+
+- Loads edge-simulation assumptions from `configs/backtest.yaml`.
+- Reads walk-forward predictions and joins modeling-panel metadata by reconstructed `row_id`.
+- Screens taker-only YES-side candidates without synthetic NO complement trades.
+- Computes configurable Kalshi-style fee proxy, spread haircut, slippage haircut, and annualized capital-lockup charge.
+- Emits fee-only, fee+spread, and fee+spread+slippage tiers for comparison.
+- Records gross edge, net edge, threshold flags, cost components, and simulated realized net per $1 payout contract.
+- Writes candidate, tier-summary, model-tier-summary, exclusion, and summary artifacts.
+- Validates nonnegative cost assumptions, probability bounds, timestamp joins, and prediction/panel key consistency.
+
+Limitations:
+
+- Outputs are simulated EV screens, not executable profits or trade recommendations.
+- Entry prices are transaction snapshot proxies; no historical executable bid/ask or order-book depth is available.
+- Fee formula is a configurable proxy, not a versioned historical exchange billing audit.
+- Spread/slippage are assumption haircuts rather than observed execution costs.
+- NO-side opportunities are intentionally not simulated until explicit NO-side executable prices are available.
 
 ## Test Coverage Registry
 
@@ -357,36 +510,57 @@ Implemented tests:
 - Raw-baseline plot config loading and PNG/SVG output smoke tests.
 - Raw-baseline audit config loading and synthetic staleness/method/balanced/orientation tests.
 - Presentation figure config loading and PNG output smoke tests.
+- Walk-forward split config loading, expanding monthly fold construction,
+  timestamp ordering, deterministic assignment independent of input order,
+  event-family leakage detection, no-leakage cases, event-id fallback, missing
+  timestamp failure, and script/config artifact smoke tests.
+- Recalibrator interface tests for fit/predict shape, probability bounds,
+  registry aliases, unknown-name failures, raw clipping, Platt/beta finite
+  predictions, degenerate-fold fallbacks, isotonic monotonicity, and model config
+  loading.
+- Walk-forward evaluation tests for script/config artifact smoke output,
+  identical test row IDs across models, exclusion of future-unresolved labels
+  from fit rows, split/panel key mismatch failure, bounded recalibrated
+  predictions, raw prediction identity, fold/aggregate metric schemas, and
+  event-family overlap diagnostics.
+- Edge simulation tests for fee subtraction, thresholding, negative-cost config
+  failures, nonnegative effective costs, capital-lockup scaling, conservative
+  tier ordering, no synthetic NO candidates, exclusion logging, config loading,
+  and script/config artifact smoke output.
+- Manuscript output tests for reporting config loading, figure/table generation
+  from synthetic saved artifacts, CLI overrides, missing full-artifact failures,
+  and no calibrator imports in reporting code.
 
 Missing high-priority tests:
 
-- Walk-forward split integrity tests.
-- Event-family leakage tests using final taxonomy.
-- Recalibrator fit/predict interface tests.
-- Edge simulation fee/slippage/lockup invariant tests.
-- End-to-end small pipeline test.
+- Event-family leakage tests using final expanded taxonomy.
+- Full end-to-end small pipeline is exercised by command; unit coverage uses a
+  dry-run command-order test rather than rerunning the pipeline inside pytest.
 
 ## Research-Grade Gaps Before Claims
 
 Cannot yet claim:
 
 - Domain-level calibration findings.
-- Walk-forward out-of-sample improvements.
-- Recalibration gains.
-- Conservative tradable edge.
-- Event-family leakage safety.
-- Publication-ready figures or tables beyond raw-baseline diagnostic PNG/SVGs.
+- Audited final walk-forward out-of-sample improvement claims.
+- Final recalibration gains with clustered uncertainty.
+- Executable trading profit or final tradable edge.
+- Event-family leakage safety under a final expanded taxonomy.
+- Final manuscript claims from figures/tables until full Phase 7, Phase 8, and
+  Phase 9 artifacts are scientifically audited.
 
 Required next build steps:
 
 1. Audit Phase 2 cleaning assumptions, especially whether `close_time` is acceptable as `resolution_ts`.
 2. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
-3. Implement Phase 5 walk-forward splits and event-family leakage checks before model fitting.
-4. Implement recalibrator interfaces and simple baselines only after metrics and splits are stable.
-5. Add edge simulation only after out-of-sample calibrated probabilities exist.
+3. Audit the full walk-forward, edge-simulation, manuscript, and robustness artifacts.
+4. Add clustered uncertainty for raw-vs-recalibrated result tables.
+5. Expand robustness to full alternate snapshot-method reruns if the current
+   small-sample variants materially change conclusions.
 
 ## Current Phase Recommendation
 
-Next recommended task: Phase 5 walk-forward splits and leakage checks, but only after explicitly accepting that initial domain/category outputs remain taxonomy placeholders or expanding taxonomy coverage.
+Next recommended task: audit the full Phase 7-10 artifacts, then add clustered
+uncertainty for raw-vs-recalibrated result tables.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.

@@ -14,3 +14,10 @@ Current data-build scripts:
 - `plot_raw_baseline.py`: raw baseline metric artifacts to pandas/matplotlib PNG and SVG diagnostic figures under `data/artifacts/raw_baseline/figures/`.
 - `audit_raw_baseline.py`: raw baseline diagnostic audit for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics.
 - `make_presentation_figures.py`: current raw-baseline artifacts to slide-ready PNG/SVG figures under `data/artifacts/presentation/figures/`.
+- `build_walkforward_splits.py`: processed contract-horizon/modeling panel to strict forecast-time expanding walk-forward split assignments and integrity diagnostics.
+- `fit_walkforward.py`: modeling panel plus walk-forward splits to raw-vs-recalibrated fold predictions, metrics, calibrator fits, leakage diagnostics, and summary artifacts.
+- `run_edge_sim.py`: walk-forward predictions plus modeling-panel metadata to conservative taker-only YES-side edge screens under configurable fee, spread, slippage, and capital-lockup assumptions.
+- `make_figures.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready figures under `paper/figures/`.
+- `make_tables.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready CSV, Markdown, and LaTeX tables under `paper/tables/`.
+- `run_robustness.py`: saved full-run artifacts to separately labeled non-confirmatory robustness tables for snapshot methods, liquidity filters, domain-exclusion availability, and friction assumptions.
+- `run_small_sample_pipeline.py`: deterministic small-sample end-to-end replication command path from cleaned interim data through paper figures/tables; supports `--dry-run` for command-order verification.

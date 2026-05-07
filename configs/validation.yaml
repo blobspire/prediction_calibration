@@ -1,0 +1,29 @@
+inputs:
+  panel_path: data/processed/modeling_panel.parquet
+
+outputs:
+  splits_path: data/processed/walkforward_splits.parquet
+  integrity_path: data/processed/walkforward_split_integrity.parquet
+  summary_path: data/processed/walkforward_split_summary.json
+
+split:
+  mode: expanding
+  timestamp_column: forecast_ts
+  train_start: auto
+  first_test_month: "2024-01"
+  validation_window: 1month
+  test_window: 1month
+  step: 1month
+  exclude_incomplete_final_test_month: true
+  limit_rows:
+
+columns:
+  contract_id_column: contract_id
+  event_family_column: event_family_id
+  event_family_fallback_column: event_id
+  horizon_columns:
+    - horizon_name
+    - horizon_bucket
+
+leakage:
+  event_family_rule: strict_overlap

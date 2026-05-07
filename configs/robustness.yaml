@@ -1,0 +1,106 @@
+inputs:
+  panel_path: data/processed/modeling_panel.parquet
+  walkforward_artifact_dir: data/artifacts/walkforward
+  edge_artifact_dir: data/artifacts/edge_sim
+  backtest_config_path: configs/backtest.yaml
+  sampling_config_path: configs/sampling.yaml
+  contracts_path: data/interim/kalshi/contracts.parquet
+  price_observations_path: data/interim/kalshi/price_observations.parquet
+
+outputs:
+  artifact_dir: data/artifacts/robustness
+  table_dir: paper/robustness/tables
+
+columns:
+  row_id_column: row_id
+  model_column: model_name
+  horizon_column: horizon_name
+  contract_column: contract_id
+  event_family_column: event_family_id
+  probability_column: predicted_probability
+  outcome_column: observed_outcome
+  snapshot_method_column: snapshot_method
+  liquidity_column: public_liquidity_proxy
+  cumulative_volume_column: cumulative_volume_to_forecast
+  staleness_column: price_staleness_seconds
+  domain_column: domain
+  category_column: category
+
+metrics:
+  log_loss_epsilon: 0.000001
+  reliability_bin_count: 10
+  reliability_min_bin_count: 30
+  calibration_min_rows: 50
+  calibration_max_iterations: 50
+  calibration_tolerance: 0.00000001
+
+robustness:
+  analysis_label: robustness_non_confirmatory
+  limit_rows:
+  liquidity_filters:
+    - name: all_rows
+      min_liquidity_proxy:
+      min_cumulative_volume:
+    - name: liquidity_proxy_ge_1
+      min_liquidity_proxy: 1.0
+      min_cumulative_volume:
+    - name: cumulative_volume_ge_100
+      min_liquidity_proxy:
+      min_cumulative_volume: 100.0
+  domain_exclusions:
+    - name: exclude_unknown_domain
+      exclude_domains:
+        - unknown
+      exclude_categories: []
+  friction_scenarios:
+    - name: base
+      fee_rate: 0.07
+      capital_annual_rate: 0.05
+      min_net_edge: 0.02
+      tiers:
+        - name: fee_only
+          spread_cost: 0.0
+          slippage_cost: 0.0
+        - name: fee_spread
+          spread_cost: 0.005
+          slippage_cost: 0.0
+        - name: fee_spread_slippage
+          spread_cost: 0.005
+          slippage_cost: 0.005
+    - name: higher_fee
+      fee_rate: 0.10
+      capital_annual_rate: 0.05
+      min_net_edge: 0.02
+      tiers:
+        - name: fee_spread_slippage
+          spread_cost: 0.005
+          slippage_cost: 0.005
+    - name: wider_spread_slippage
+      fee_rate: 0.07
+      capital_annual_rate: 0.05
+      min_net_edge: 0.02
+      tiers:
+        - name: fee_spread_slippage
+          spread_cost: 0.01
+          slippage_cost: 0.01
+    - name: higher_lockup
+      fee_rate: 0.07
+      capital_annual_rate: 0.10
+      min_net_edge: 0.02
+      tiers:
+        - name: fee_spread_slippage
+          spread_cost: 0.005
+          slippage_cost: 0.005
+  snapshot_variants:
+    enabled: true
+    limit_contracts: 1000
+    output_dir: data/artifacts/robustness/snapshot_variants
+    variants:
+      - name: last_trade_primary
+        snapshot_methods:
+          - last_trade
+          - vwap
+      - name: vwap_primary
+        snapshot_methods:
+          - vwap
+          - last_trade

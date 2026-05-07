@@ -13,3 +13,9 @@ Current configs:
 - `figures.yaml`: raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI.
 - `raw_baseline_audit.yaml`: diagnostic audit settings for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation checks, and close timestamp semantics.
 - `presentation.yaml`: slide-ready raw-baseline presentation figure inputs, output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values.
+- `validation.yaml`: forecast-time expanding walk-forward split inputs, outputs, monthly train/validation/test windows, event-family fallback policy, and strict overlap leakage rule.
+- `models.yaml`: reusable recalibrator defaults, enabled simple calibrators, probability/outcome columns, prediction clipping epsilon, fit controls, and walk-forward evaluation artifact settings.
+- `backtest.yaml`: conservative taker-only YES-side edge-screen inputs, output directory, Kalshi-style fee proxy, capital-lockup assumption, optional staleness/liquidity filters, and fee/spread/slippage friction tiers.
+- `reporting.yaml`: manuscript figure/table artifact inputs, `paper/` output directories, horizon/model ordering, figure/table formats, metric scope, and explicit full-vs-smoke run label.
+- `robustness.yaml`: non-confirmatory robustness diagnostics for snapshot-method slices, liquidity filters, domain-exclusion availability, and friction-assumption sensitivity. Outputs are separate from primary artifacts.
+- `replication_small.yaml`: deterministic small-sample paper replication path starting from cleaned interim Kalshi tables and writing under replication-specific processed/artifact/paper directories.
