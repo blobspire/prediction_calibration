@@ -15,3 +15,4 @@ Current data-build scripts:
 - `audit_raw_baseline.py`: raw baseline diagnostic audit for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics.
 - `make_presentation_figures.py`: current raw-baseline artifacts to slide-ready PNG/SVG figures under `data/artifacts/presentation/figures/`.
 - `build_walkforward_splits.py`: processed contract-horizon/modeling panel to strict forecast-time expanding walk-forward split assignments and integrity diagnostics.
+- `fit_walkforward.py`: modeling panel plus walk-forward splits to raw-vs-recalibrated fold predictions, metrics, calibrator fits, leakage diagnostics, and summary artifacts.

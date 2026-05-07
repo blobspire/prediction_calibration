@@ -101,9 +101,14 @@ def test_models_config_loads_and_instantiates_enabled_calibrators(tmp_path: Path
 inputs:
   panel_path: {tmp_path / "panel.parquet"}
   splits_path: {tmp_path / "splits.parquet"}
+outputs:
+  artifact_dir: {tmp_path / "artifacts"}
 columns:
   probability_column: raw_probability
   outcome_column: observed_outcome
+  resolution_column: resolution_ts
+  horizon_column: horizon_name
+  event_family_column: event_family_id
 calibrators:
   enabled: [raw, platt, beta, isotonic]
 prediction:
@@ -113,6 +118,24 @@ fit:
   max_iterations: 50
   tolerance: 0.00000001
   ridge: 0.000000001
+evaluation:
+  fit_splits: [train, validation]
+  fit_label_policy: resolved_by_test_start
+  event_family_policy: report_only
+  limit_folds:
+  limit_rows:
+metrics:
+  log_loss_epsilon: 0.001
+  reliability_bin_count: 5
+  reliability_min_bin_count: 2
+  calibration_min_rows: 4
+  calibration_max_iterations: 50
+  calibration_tolerance: 0.00000001
+  groupings:
+    - name: overall
+      columns: []
+    - name: horizon
+      columns: [horizon_name]
 """,
         encoding="utf-8",
     )
@@ -122,7 +145,11 @@ fit:
 
     assert config.probability_column == "raw_probability"
     assert config.outcome_column == "observed_outcome"
+    assert config.artifact_dir == tmp_path / "artifacts"
+    assert config.resolution_column == "resolution_ts"
     assert config.calibrator_config.epsilon == 0.001
+    assert config.fit_label_policy == "resolved_by_test_start"
+    assert config.metric_groupings[0]["name"] == "overall"
     assert [calibrator.name for calibrator in calibrators] == [
         "raw",
         "platt",

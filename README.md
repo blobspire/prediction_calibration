@@ -26,7 +26,8 @@ The current repository supports raw schema inspection, Kalshi interim cleaning,
 contract-horizon snapshot construction, taxonomy enrichment, feature-panel
 construction, raw baseline forecast metrics, and strict walk-forward split
 construction. The codebase also includes reusable simple recalibrators.
-Walk-forward model evaluation and edge simulation will be added in later phases.
+Walk-forward raw-vs-recalibrated model evaluation is available for simple
+calibrators. Edge simulation will be added in a later phase.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -244,13 +245,43 @@ calibrators = make_configured_calibrators(config)
 calibrators by default. Each exposes `fit(probabilities, outcomes)` and
 `predict_proba(probabilities)`, and every prediction is clipped to the configured
 epsilon, currently `0.000001`. These are reusable Phase 6 model components only:
-they do not run walk-forward fold evaluation, write predictions, or claim
-recalibration gains yet.
+they can be used directly by the walk-forward evaluator below.
+
+Run walk-forward raw versus recalibrated evaluation:
+
+```bash
+uv run python scripts/fit_walkforward.py --config configs/models.yaml
+```
+
+The evaluator trains each configured calibrator on `train` + `validation` rows
+from each fold, then removes any fit row whose outcome was not resolved by that
+fold's test start. Raw and recalibrated models are scored on identical future
+test row IDs. Event-family overlaps are reported but not filtered because the
+current `event_family_id` remains a conservative proxy.
+
+The script writes:
+
+```text
+data/artifacts/walkforward/predictions.parquet
+data/artifacts/walkforward/fold_metrics.parquet
+data/artifacts/walkforward/aggregate_metrics.parquet
+data/artifacts/walkforward/calibrator_fits.parquet
+data/artifacts/walkforward/event_family_leakage.parquet
+data/artifacts/walkforward/summary.json
+```
+
+For a quick smoke run on the first fold:
+
+```bash
+uv run python scripts/fit_walkforward.py \
+  --config configs/models.yaml \
+  --limit-folds 1 \
+  --artifact-dir data/artifacts/walkforward_smoke
+```
 
 Expected workflow once later phases exist:
 
 ```bash
-uv run python scripts/fit_walkforward.py --config configs/models.yaml
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
 ```
 

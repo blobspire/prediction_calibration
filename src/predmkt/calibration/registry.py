@@ -23,10 +23,26 @@ class ModelsConfig:
 
     panel_path: Path
     splits_path: Path
+    artifact_dir: Path
     probability_column: str
     outcome_column: str
+    resolution_column: str
+    horizon_column: str
+    event_family_column: str
     enabled_calibrators: tuple[str, ...]
     calibrator_config: CalibratorConfig
+    fit_splits: tuple[str, ...]
+    fit_label_policy: str
+    event_family_policy: str
+    limit_folds: int | None
+    limit_rows: int | None
+    log_loss_epsilon: float
+    reliability_bin_count: int
+    reliability_min_bin_count: int
+    calibration_min_rows: int
+    calibration_max_iterations: int
+    calibration_tolerance: float
+    metric_groupings: tuple[dict[str, tuple[str, ...]], ...]
     config_path: Path | None = None
     config_sha256: str | None = None
 
@@ -78,20 +94,30 @@ def load_models_config(path: Path) -> ModelsConfig:
         raise ValueError(f"models config must be a mapping: {path}")
 
     inputs = _mapping(raw, "inputs")
+    outputs = _mapping(raw, "outputs")
     columns = _mapping(raw, "columns")
     calibrators = _mapping(raw, "calibrators")
     prediction = _mapping(raw, "prediction")
     fit = _mapping(raw, "fit")
+    evaluation = _mapping(raw, "evaluation")
+    metrics = _mapping(raw, "metrics")
 
     enabled = tuple(str(name) for name in _required(calibrators, "enabled"))
     if not enabled:
         raise ValueError("models config must enable at least one calibrator")
+    fit_splits = tuple(str(value) for value in _required(evaluation, "fit_splits"))
+    if not fit_splits:
+        raise ValueError("models config evaluation.fit_splits cannot be empty")
 
     return ModelsConfig(
         panel_path=Path(_required(inputs, "panel_path")),
         splits_path=Path(_required(inputs, "splits_path")),
+        artifact_dir=Path(_required(outputs, "artifact_dir")),
         probability_column=str(_required(columns, "probability_column")),
         outcome_column=str(_required(columns, "outcome_column")),
+        resolution_column=str(_required(columns, "resolution_column")),
+        horizon_column=str(_required(columns, "horizon_column")),
+        event_family_column=str(_required(columns, "event_family_column")),
         enabled_calibrators=enabled,
         calibrator_config=CalibratorConfig(
             epsilon=float(_required(prediction, "epsilon")),
@@ -99,6 +125,24 @@ def load_models_config(path: Path) -> ModelsConfig:
             max_iterations=int(_required(fit, "max_iterations")),
             tolerance=float(_required(fit, "tolerance")),
             ridge=float(_required(fit, "ridge")),
+        ),
+        fit_splits=fit_splits,
+        fit_label_policy=str(_required(evaluation, "fit_label_policy")),
+        event_family_policy=str(_required(evaluation, "event_family_policy")),
+        limit_folds=_optional_int(evaluation.get("limit_folds")),
+        limit_rows=_optional_int(evaluation.get("limit_rows")),
+        log_loss_epsilon=float(_required(metrics, "log_loss_epsilon")),
+        reliability_bin_count=int(_required(metrics, "reliability_bin_count")),
+        reliability_min_bin_count=int(_required(metrics, "reliability_min_bin_count")),
+        calibration_min_rows=int(_required(metrics, "calibration_min_rows")),
+        calibration_max_iterations=int(_required(metrics, "calibration_max_iterations")),
+        calibration_tolerance=float(_required(metrics, "calibration_tolerance")),
+        metric_groupings=tuple(
+            {
+                "name": str(_required(grouping, "name")),
+                "columns": tuple(str(column) for column in grouping.get("columns", [])),
+            }
+            for grouping in _required(metrics, "groupings")
         ),
         config_path=path,
         config_sha256=hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),
@@ -116,3 +160,9 @@ def _required(raw: dict[str, Any], key: str) -> Any:
     if key not in raw:
         raise ValueError(f"models config missing required key: {key}")
     return raw[key]
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    return int(value)
