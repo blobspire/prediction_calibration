@@ -25,8 +25,8 @@ python -m pytest
 The current repository supports raw schema inspection, Kalshi interim cleaning,
 contract-horizon snapshot construction, taxonomy enrichment, feature-panel
 construction, raw baseline forecast metrics, and strict walk-forward split
-construction. Recalibration models, walk-forward model evaluation, and edge
-simulation will be added in later phases.
+construction. The codebase also includes reusable simple recalibrators.
+Walk-forward model evaluation and edge simulation will be added in later phases.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -230,6 +230,22 @@ data/processed/walkforward_split_summary.json
 
 The current event-family identifier is still a conservative `event_id` proxy for
 most rows, so leakage diagnostics are useful but not a final family taxonomy.
+
+Use simple recalibrators from Python:
+
+```python
+from predmkt.calibration import load_models_config, make_configured_calibrators
+
+config = load_models_config("configs/models.yaml")
+calibrators = make_configured_calibrators(config)
+```
+
+`configs/models.yaml` enables `raw`, `platt`, `beta`, and `isotonic`
+calibrators by default. Each exposes `fit(probabilities, outcomes)` and
+`predict_proba(probabilities)`, and every prediction is clipped to the configured
+epsilon, currently `0.000001`. These are reusable Phase 6 model components only:
+they do not run walk-forward fold evaluation, write predictions, or claim
+recalibration gains yet.
 
 Expected workflow once later phases exist:
 

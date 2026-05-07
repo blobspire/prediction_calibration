@@ -1,0 +1,23 @@
+inputs:
+  panel_path: data/processed/modeling_panel.parquet
+  splits_path: data/processed/walkforward_splits.parquet
+
+columns:
+  probability_column: raw_probability
+  outcome_column: observed_outcome
+
+calibrators:
+  enabled:
+    - raw
+    - platt
+    - beta
+    - isotonic
+
+prediction:
+  epsilon: 0.000001
+
+fit:
+  min_rows: 20
+  max_iterations: 100
+  tolerance: 0.00000001
+  ridge: 0.000000001

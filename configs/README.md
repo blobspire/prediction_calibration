@@ -14,3 +14,4 @@ Current configs:
 - `raw_baseline_audit.yaml`: diagnostic audit settings for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation checks, and close timestamp semantics.
 - `presentation.yaml`: slide-ready raw-baseline presentation figure inputs, output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values.
 - `validation.yaml`: forecast-time expanding walk-forward split inputs, outputs, monthly train/validation/test windows, event-family fallback policy, and strict overlap leakage rule.
+- `models.yaml`: reusable recalibrator defaults, enabled simple calibrators, probability/outcome columns, prediction clipping epsilon, and fit controls.

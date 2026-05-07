@@ -1,6 +1,6 @@
 # Current Capabilities
 
-Last updated: 2026-05-06.
+Last updated: 2026-05-07.
 
 This is the project capability registry. It tracks what the codebase can currently do,
 what artifacts exist locally, what is only partial or placeholder, and what must be
@@ -37,7 +37,7 @@ Status labels:
 | Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Domain/category placeholders; liquidity is public trade proxy only; momentum/volatility use transaction prices. |
 | Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs remain taxonomy placeholders until coverage improves. |
 | Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Later model evaluation must decide whether to filter or group around flagged event-family overlaps; event families remain conservative proxies. |
-| Phase 6 recalibrators | not implemented | Calibration package is only a placeholder. | Need raw/logistic/beta/isotonic interfaces and tests. |
+| Phase 6 recalibrators | complete | Common fit/predict interface, raw/Platt/beta/isotonic calibrators, model config, registry, bounded predictions, and synthetic tests. | Full walk-forward model evaluation is Phase 7. |
 | Phase 7 walk-forward evaluation | not implemented | No fold-level model evaluation. | Need identical test folds, saved fold artifacts, config hashes, leakage checks. |
 | Phase 8 edge simulation | not implemented | Edge package is only a placeholder. | Need fees, slippage, liquidity/staleness filters, lockup assumptions, conservative labels. |
 | Phase 9 plots/reports | partial | Raw-baseline pandas/matplotlib diagnostic figures can be generated from saved metric artifacts. | Need manuscript-ready figure/table generation for full raw-vs-recalibrated results. |
@@ -73,13 +73,22 @@ uv run python scripts/make_presentation_figures.py --config configs/presentation
 uv run python scripts/build_walkforward_splits.py --config configs/validation.yaml
 ```
 
+Reusable recalibrators are available through the Python registry:
+
+```python
+from predmkt.calibration import load_models_config, make_configured_calibrators
+
+config = load_models_config("configs/models.yaml")
+calibrators = make_configured_calibrators(config)
+```
+
 Run tests:
 
 ```bash
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `54 passed`.
+Latest local verification used `uv run pytest` and passed `62 passed`.
 `uv run ruff check .` also passes. The current walk-forward splitter completed
 on 695,940 modeling-panel rows.
 
@@ -94,7 +103,7 @@ on 695,940 modeling-panel rows.
 | `configs/figures.yaml` | partial | Raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI. |
 | `configs/raw_baseline_audit.yaml` | partial | Diagnostics for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics. |
 | `configs/presentation.yaml` | partial | Slide-ready raw-baseline figure inputs, presentation output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values. |
-| `configs/models.yaml` | not implemented | Needed for model/recalibrator settings. |
+| `configs/models.yaml` | complete | Recalibrator input columns, enabled raw/Platt/beta/isotonic model names, prediction clipping epsilon, and fit controls. |
 | `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
 | `configs/backtest.yaml` | not implemented | Needed for edge simulation assumptions. |
 
@@ -351,11 +360,39 @@ Limitations:
 - Strict event-family overlaps are reported, not automatically filtered.
 - Event-family identifiers are still conservative taxonomy proxies until family mapping coverage improves.
 
+### `src/predmkt/calibration/`
+
+Status: complete for Phase 6 reusable simple recalibrators.
+
+Capabilities:
+
+- Provides a common `fit(probabilities, outcomes)` and
+  `predict_proba(probabilities)` interface.
+- Provides `RawCalibrator`, `PlattCalibrator`, `BetaCalibrator`, and
+  `IsotonicCalibrator`.
+- Clips every returned prediction to the configured epsilon, currently
+  `0.000001` in `configs/models.yaml`.
+- Uses dependency-free logistic IRLS for Platt and beta calibration.
+- Uses dependency-free pool-adjacent-violators for isotonic calibration.
+- Provides a registry with names `raw`, `platt`, `logistic`, `beta`, and
+  `isotonic`.
+- Loads enabled calibrators from `configs/models.yaml`.
+- Falls back to clipped raw probabilities on degenerate Platt/beta folds with
+  explicit statuses.
+- Treats negative Platt slopes as invalid for confirmatory monotone
+  recalibration and falls back to raw.
+
+Limitations:
+
+- These are model components only; no walk-forward prediction table or raw-vs-
+  recalibrated score artifact is written yet.
+- No hierarchical or partially pooled calibrator exists.
+- Hyperparameter selection over folds remains Phase 7.
+
 ### Placeholder Packages
 
 Status: not implemented.
 
-- `src/predmkt/calibration/`
 - `src/predmkt/edge/`
 
 These packages currently contain only package docstrings and should not be treated as functional.
@@ -384,11 +421,14 @@ Implemented tests:
   timestamp ordering, deterministic assignment independent of input order,
   event-family leakage detection, no-leakage cases, event-id fallback, missing
   timestamp failure, and script/config artifact smoke tests.
+- Recalibrator interface tests for fit/predict shape, probability bounds,
+  registry aliases, unknown-name failures, raw clipping, Platt/beta finite
+  predictions, degenerate-fold fallbacks, isotonic monotonicity, and model config
+  loading.
 
 Missing high-priority tests:
 
 - Event-family leakage tests using final expanded taxonomy.
-- Recalibrator fit/predict interface tests.
 - Edge simulation fee/slippage/lockup invariant tests.
 - End-to-end small pipeline test.
 
@@ -408,13 +448,14 @@ Required next build steps:
 1. Audit Phase 2 cleaning assumptions, especially whether `close_time` is acceptable as `resolution_ts`.
 2. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
 3. Decide Phase 7 policy for strict event-family overlaps before fitting models.
-4. Implement recalibrator interfaces and simple baselines only after metrics and splits are stable.
+4. Implement Phase 7 walk-forward model evaluation using the stable split and
+   calibrator interfaces.
 5. Add edge simulation only after out-of-sample calibrated probabilities exist.
 
 ## Current Phase Recommendation
 
-Next recommended task: Phase 6 recalibrator registry and simple baselines, with a
-parallel decision on whether Phase 7 should drop, group, or report folds with
-strict event-family overlaps.
+Next recommended task: Phase 7 walk-forward model evaluation, with a parallel
+decision on whether Phase 7 should drop, group, or report folds with strict
+event-family overlaps.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.
