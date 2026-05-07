@@ -41,7 +41,7 @@ Status labels:
 | Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Clustered inference, hierarchical models, and full-scale audited edge interpretation remain later work. |
 | Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
 | Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need scientific audit and clustered uncertainty. |
-| Phase 10 replication/robustness | not implemented | No replication command or robustness configs. | Need end-to-end small pipeline and robustness checks. |
+| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions are not substantive while taxonomy is all `unknown`. |
 
 ## Current Commands
 
@@ -75,6 +75,8 @@ uv run python scripts/fit_walkforward.py --config configs/models.yaml
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
 uv run python scripts/make_figures.py --config configs/reporting.yaml
 uv run python scripts/make_tables.py --config configs/reporting.yaml
+uv run python scripts/run_robustness.py --config configs/robustness.yaml
+uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml
 ```
 
 Reusable recalibrators are available through the Python registry:
@@ -92,12 +94,12 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `82 passed`.
+Latest local verification used `uv run pytest` and passed `85 passed`.
 `uv run ruff check .` also passes. Targeted `mypy` checks pass for
 `src/predmkt/edge`, `src/predmkt/plots/manuscript.py`, and
-`src/predmkt/reports/manuscript.py`. Full walk-forward, edge-simulation, and
-manuscript artifacts now exist under `data/artifacts/walkforward/`,
-`data/artifacts/edge_sim/`, `paper/figures/`, and `paper/tables/`.
+`src/predmkt/reports/manuscript.py`. Full walk-forward, edge-simulation,
+manuscript, robustness, and small-sample replication artifacts now exist under
+their configured output roots.
 
 ## Config Registry
 
@@ -114,6 +116,8 @@ manuscript artifacts now exist under `data/artifacts/walkforward/`,
 | `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
 | `configs/backtest.yaml` | complete | Conservative YES-side edge-screen inputs, fee proxy, spread/slippage haircuts, capital-lockup charge, optional liquidity/staleness filters, and artifact directory. |
 | `configs/reporting.yaml` | complete | Manuscript figure/table input artifact dirs, `paper/` output dirs, model/horizon order, figure/table formats, metric scope, and explicit full-vs-smoke run label. |
+| `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, explicit unavailable-domain handling, friction scenarios, and small snapshot variants. |
+| `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs, limits, run label, and separate processed/artifact/paper output roots. |
 
 ## Local Data Artifacts
 
@@ -199,6 +203,22 @@ Processed outputs:
 - `paper/tables/*.csv`
 - `paper/tables/*.md`
 - `paper/tables/*.tex`
+- `data/artifacts/robustness/summary.json`: full robustness run over 1,970,448 saved prediction rows.
+- `data/artifacts/robustness/snapshot_method_slices.parquet`
+- `data/artifacts/robustness/liquidity_filter_sensitivity.parquet`
+- `data/artifacts/robustness/domain_exclusion_status.parquet`: records domain/category exclusions as unavailable while taxonomy is all `unknown`.
+- `data/artifacts/robustness/friction_assumption_sensitivity.parquet`
+- `data/artifacts/robustness/snapshot_variant_runs.parquet`: two small-sample snapshot variant summaries.
+- `paper/robustness/tables/*.csv`
+- `paper/robustness/tables/*.md`
+- `data/processed/replication_small/modeling_panel.parquet`: deterministic small-sample replication panel with 8,460 rows.
+- `data/artifacts/replication/small_sample/replication_manifest.json`: all 9 stages completed.
+- `data/artifacts/replication/small_sample/walkforward/predictions.parquet`: 1,636 small-sample walk-forward predictions over 2 evaluated folds.
+- `data/artifacts/replication/small_sample/edge_sim/edge_candidates.parquet`: 4,908 small-sample simulated edge candidate rows.
+- `paper/replication/small_sample/figures/figure_manifest.json`
+- `paper/replication/small_sample/figures/manuscript_*.{png,svg,pdf}`
+- `paper/replication/small_sample/tables/table_manifest.json`
+- `paper/replication/small_sample/tables/*.{csv,md,tex}`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -357,7 +377,8 @@ Limitations:
 - The near-close audit is diagnostic only and does not select a revised snapshot
   method or stale-price rule.
 - Manuscript figures require full walk-forward and edge artifacts by default;
-  local walk-forward/edge artifacts currently present are smoke artifacts.
+  full artifacts are present locally, but manuscript claims still require
+  scientific audit and uncertainty analysis.
 - Domain/category plots are omitted while taxonomy coverage is unknown.
 
 ### `src/predmkt/reports/`
@@ -376,12 +397,16 @@ Capabilities:
 - Generates manuscript score, calibration, edge-friction, and limitation tables
   from saved full-run artifacts in CSV, Markdown, and LaTeX formats.
 - Writes table manifests with source artifacts and effective reporting config.
+- Generates non-confirmatory robustness tables for snapshot-method slices,
+  liquidity filters, explicit domain-exclusion availability, and friction
+  assumptions.
 
 Limitations:
 
 - Raw-baseline audit reports are diagnostic only and do not revise the baseline methodology.
-- Manuscript tables require full walk-forward and edge artifacts by default;
-  local walk-forward/edge artifacts currently present are smoke artifacts.
+- Manuscript tables require full walk-forward and edge artifacts by default.
+- Robustness tables are sensitivity diagnostics, not replacement confirmatory
+  results.
 
 ### `src/predmkt/validation/`
 
@@ -509,7 +534,8 @@ Implemented tests:
 Missing high-priority tests:
 
 - Event-family leakage tests using final expanded taxonomy.
-- End-to-end small pipeline test.
+- Full end-to-end small pipeline is exercised by command; unit coverage uses a
+  dry-run command-order test rather than rerunning the pipeline inside pytest.
 
 ## Research-Grade Gaps Before Claims
 
@@ -527,14 +553,14 @@ Required next build steps:
 
 1. Audit Phase 2 cleaning assumptions, especially whether `close_time` is acceptable as `resolution_ts`.
 2. Expand taxonomy coverage or explicitly decide that initial metrics are overall/horizon-only.
-3. Audit the full walk-forward, edge-simulation, and manuscript artifacts.
+3. Audit the full walk-forward, edge-simulation, manuscript, and robustness artifacts.
 4. Add clustered uncertainty for raw-vs-recalibrated result tables.
-5. Add robustness configurations for liquidity, staleness, and friction assumptions.
+5. Expand robustness to full alternate snapshot-method reruns if the current
+   small-sample variants materially change conclusions.
 
 ## Current Phase Recommendation
 
-Next recommended task: audit the full Phase 7/8/9 artifacts, then add clustered
-uncertainty and robustness configurations for liquidity, staleness, and
-friction assumptions.
+Next recommended task: audit the full Phase 7-10 artifacts, then add clustered
+uncertainty for raw-vs-recalibrated result tables.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.

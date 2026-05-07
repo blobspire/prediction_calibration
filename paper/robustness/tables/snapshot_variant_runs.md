@@ -1,0 +1,4 @@
+| variant_name | status | returncode | row_count | candidate_count | snapshot_method_counts_json | output_path | summary_path | analysis_label | non_confirmatory |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| last_trade_primary | completed | 0 | 4551 | 8000 | {"last_trade": 4551} | data/artifacts/robustness/snapshot_variants/last_trade_primary/contract_horizon_panel.parquet | data/artifacts/robustness/snapshot_variants/last_trade_primary/contract_horizon_panel_summary.json | robustness_non_confirmatory | True |
+| vwap_primary | completed | 0 | 4551 | 8000 | {"last_trade": 2642, "vwap": 1909} | data/artifacts/robustness/snapshot_variants/vwap_primary/contract_horizon_panel.parquet | data/artifacts/robustness/snapshot_variants/vwap_primary/contract_horizon_panel_summary.json | robustness_non_confirmatory | True |

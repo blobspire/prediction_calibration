@@ -1,0 +1,28 @@
+inputs:
+  contracts_path: data/interim/kalshi/contracts.parquet
+  price_observations_path: data/interim/kalshi/price_observations.parquet
+
+outputs:
+  processed_dir: data/processed/replication_small
+  artifact_dir: data/artifacts/replication/small_sample
+  paper_dir: paper/replication/small_sample
+  manifest_path: data/artifacts/replication/small_sample/replication_manifest.json
+
+configs:
+  sampling: configs/sampling.yaml
+  taxonomy: configs/taxonomy.yaml
+  features: configs/features.yaml
+  metrics: configs/metrics.yaml
+  validation: configs/validation.yaml
+  models: configs/models.yaml
+  backtest: configs/backtest.yaml
+  reporting: configs/reporting.yaml
+
+limits:
+  limit_contracts: 10000
+  limit_folds: 2
+
+replication:
+  run_label: small_sample
+  non_confirmatory: true
+  start_from: data/interim/kalshi

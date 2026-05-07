@@ -349,6 +349,51 @@ the full walk-forward or edge artifacts are missing. For a deliberate draft run
 from the current smoke artifacts, pass `--artifact-run-label smoke` plus
 `--walkforward-dir` and `--edge-dir` overrides.
 
+Run non-confirmatory robustness diagnostics from saved full-run artifacts:
+
+```bash
+uv run python scripts/run_robustness.py --config configs/robustness.yaml
+```
+
+The robustness config reads the full modeling panel, walk-forward artifacts, and
+edge artifacts, then writes separate diagnostic outputs under:
+
+```text
+data/artifacts/robustness/
+paper/robustness/tables/
+```
+
+These outputs compare saved-result snapshot-method slices, liquidity filters,
+domain-exclusion availability, and alternative fee/spread/slippage/lockup
+assumptions. They are labeled non-confirmatory. Domain/category exclusion checks
+currently report `not_applicable` when taxonomy coverage is all `unknown`.
+Friction checks remain simulated EV screens because quote depth, historical
+executability, and order-book costs are not available in the current public
+data.
+
+Run the deterministic small-sample paper replication path:
+
+```bash
+uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml
+```
+
+For a cheap command-order check without producing data artifacts:
+
+```bash
+uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml --dry-run
+```
+
+The small-sample path starts from cleaned interim Kalshi tables, not
+`data/raw/`, and runs snapshot, taxonomy, feature, raw-baseline, split,
+walk-forward, edge, figure, and table stages with deterministic limits. It
+writes separately from primary outputs:
+
+```text
+data/processed/replication_small/
+data/artifacts/replication/small_sample/
+paper/replication/small_sample/
+```
+
 Use the tests to verify the package imports and schema utilities:
 
 ```bash
