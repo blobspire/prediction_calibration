@@ -7,10 +7,10 @@ import json
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd  # type: ignore[import-untyped]
-import pyarrow.parquet as pq  # type: ignore[import-untyped]
+import pyarrow.parquet as pq
 import yaml  # type: ignore[import-untyped]
 
 STATUS_ORDER = {"PASS": 0, "PARTIAL": 1, "FAIL": 2}
@@ -38,6 +38,7 @@ class FinalAuditConfig:
     raw_baseline_dir: Path
     walkforward_dir: Path
     edge_dir: Path
+    inference_dir: Path
     robustness_dir: Path
     figure_manifest_path: Path
     table_manifest_path: Path
@@ -107,6 +108,7 @@ def load_final_audit_config(path: Path) -> FinalAuditConfig:
         raw_baseline_dir=Path(_required(inputs, "raw_baseline_dir")),
         walkforward_dir=Path(_required(inputs, "walkforward_dir")),
         edge_dir=Path(_required(inputs, "edge_dir")),
+        inference_dir=Path(_required(inputs, "inference_dir")),
         robustness_dir=Path(_required(inputs, "robustness_dir")),
         figure_manifest_path=Path(_required(inputs, "figure_manifest_path")),
         table_manifest_path=Path(_required(inputs, "table_manifest_path")),
@@ -144,6 +146,7 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
         checks.extend(_audit_modeling_panel(config))
         checks.extend(_audit_splits(config))
         checks.extend(_audit_walkforward(config))
+        checks.extend(_audit_inference(config))
         checks.extend(_audit_raw_baseline(config))
         checks.extend(_audit_edge(config))
         checks.extend(_audit_reporting(config))
@@ -181,7 +184,8 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
             "A PARTIAL verdict can be acceptable for Phase 11 when hard invariants pass but "
             "known semantic limitations remain.",
             "Final deployment still requires later roadmap phases for manual taxonomy review, "
-            "clustered uncertainty, expanded robustness, and edge executability.",
+            "expanded calibration methods, full robustness reruns, edge executability, and "
+            "run-registry hardening.",
         ],
     )
     paths["summary"].write_text(
@@ -207,7 +211,7 @@ def artifact_inventory(config: FinalAuditConfig) -> pd.DataFrame:
             "columns_json": None,
         }
         if exists and path.suffix == ".parquet":
-            parquet = pq.ParquetFile(path)
+            parquet = pq.ParquetFile(path)  # type: ignore[no-untyped-call]
             row["row_count"] = int(parquet.metadata.num_rows)
             row["columns_json"] = json.dumps(parquet.schema_arrow.names)
         rows.append(row)
@@ -626,7 +630,8 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "event_family_policy_report_only",
             event_policy_status,
             "event-family overlaps are handled by a final audited policy",
-            "event-family overlaps are reported, not filtered; clustered handling is Phase 13",
+            "event-family overlaps are reported, not filtered; Phase 13 clusters "
+            "uncertainty by event family but does not exclude overlaps",
             {
                 "event_family_overlap_count": summary.get("event_family_overlap_count"),
                 "event_family_policy": event_policy,
@@ -658,6 +663,100 @@ def _audit_raw_baseline(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "trade-weighted robustness is not enabled as confirmatory default",
             "trade-weighted robustness appears enabled by default",
             {},
+        ),
+    ]
+
+
+def _audit_inference(config: FinalAuditConfig) -> list[dict[str, Any]]:
+    summary = _read_json(config.inference_dir / "summary.json")
+    bootstrap_unit = str(summary.get("bootstrap_unit", "")).lower()
+    bootstrap_mode = str(summary.get("bootstrap_mode", "")).lower()
+    paired = pd.read_parquet(config.inference_dir / "paired_score_differences.parquet")
+    scores = pd.read_parquet(config.inference_dir / "score_intervals.parquet")
+    calibration = pd.read_parquet(config.inference_dir / "calibration_intervals.parquet")
+    required_paired = {
+        "estimate_delta",
+        "ci_lower",
+        "ci_upper",
+        "p_value",
+        "q_value",
+        "effective_cluster_count",
+        "bootstrap_unit",
+        "aggregation_mode",
+    }
+    required_scores = {
+        "estimate",
+        "ci_lower",
+        "ci_upper",
+        "effective_cluster_count",
+        "bootstrap_unit",
+        "aggregation_mode",
+    }
+    required_calibration = {
+        "estimate",
+        "ci_lower",
+        "ci_upper",
+        "p_value",
+        "effective_cluster_count",
+        "bootstrap_unit",
+    }
+    bad_units = int(
+        sum(
+            (frame["bootstrap_unit"].astype(str).str.lower() != "event_family_id").sum()
+            for frame in (paired, scores, calibration)
+            if "bootstrap_unit" in frame.columns
+        )
+    )
+    bad_aggregation = int(
+        sum(
+            (frame["aggregation_mode"].astype(str) != "equal_contract").sum()
+            for frame in (paired, scores)
+            if "aggregation_mode" in frame.columns
+        )
+    )
+    iid_language = bootstrap_unit in {"iid", "row", "row_id", "trade", "trade_id"} or any(
+        token in bootstrap_mode for token in ("iid", "row", "trade")
+    )
+    return [
+        _check(
+            "phase_13",
+            "inference_bootstrap_unit",
+            "PASS" if bootstrap_unit == "event_family_id" and bad_units == 0 else "FAIL",
+            "inference artifacts use event-family clustered bootstrap",
+            "inference artifacts do not use the required event-family bootstrap unit",
+            {"summary_bootstrap_unit": bootstrap_unit, "bad_artifact_rows": bad_units},
+        ),
+        _check(
+            "phase_13",
+            "inference_no_iid_bootstrap",
+            "PASS" if not iid_language else "FAIL",
+            "inference summary contains no iid row/trade bootstrap language",
+            "inference summary reports an iid/row/trade bootstrap mode",
+            {"bootstrap_summary_text_contains_iid_or_row": iid_language},
+        ),
+        _check(
+            "phase_13",
+            "inference_required_columns",
+            "PASS"
+            if required_paired <= set(paired.columns)
+            and required_scores <= set(scores.columns)
+            and required_calibration <= set(calibration.columns)
+            else "FAIL",
+            "inference artifacts contain CI, p/q-value, and cluster-count columns",
+            "inference artifacts are missing required uncertainty columns",
+            {
+                "paired_missing": sorted(required_paired - set(paired.columns)),
+                "scores_missing": sorted(required_scores - set(scores.columns)),
+                "calibration_missing": sorted(required_calibration - set(calibration.columns)),
+            },
+        ),
+        _check(
+            "phase_13",
+            "inference_equal_contract",
+            "PASS" if bad_aggregation == 0 else "FAIL",
+            "inference point estimates remain equal-contract",
+            "inference artifacts include non-equal-contract confirmatory aggregation rows",
+            {"bad_aggregation_rows": bad_aggregation},
         ),
     ]
 
@@ -737,6 +836,28 @@ def _audit_reporting(config: FinalAuditConfig) -> list[dict[str, Any]]:
         str(item).lower()
         for item in [*figure.get("limitations", []), *table.get("limitations", [])]
     )
+    table_dir = config.table_manifest_path.parent
+    score_table = pd.read_csv(table_dir / "overall_score_comparison.csv")
+    calibration_table = pd.read_csv(table_dir / "calibration_intercept_slope.csv")
+    score_required = {
+        "brier_score_ci_lower",
+        "brier_delta_p_value",
+        "brier_delta_q_value",
+        "log_loss_ci_lower",
+        "ece_delta_q_value",
+        "effective_cluster_count",
+    }
+    calibration_required = {
+        "calibration_intercept_ci_lower",
+        "calibration_intercept_p_value",
+        "calibration_slope_ci_lower",
+        "calibration_slope_p_value",
+        "effective_cluster_count",
+    }
+    source_artifacts = {
+        "figure": figure.get("source_artifacts", {}),
+        "table": table.get("source_artifacts", {}),
+    }
     return [
         _check(
             "phase_9",
@@ -761,9 +882,35 @@ def _audit_reporting(config: FinalAuditConfig) -> list[dict[str, Any]]:
             {"source_artifacts": source_text},
         ),
         _check(
+            "phase_9_13",
+            "reporting_sources_include_inference",
+            "PASS" if "inference" in source_text else "FAIL",
+            "manuscript manifests include Phase 13 inference artifact sources",
+            "manuscript manifests do not include inference artifact sources",
+            {"source_artifacts": source_artifacts},
+        ),
+        _check(
+            "phase_9_13",
+            "reporting_tables_include_uncertainty",
+            "PASS"
+            if score_required <= set(score_table.columns)
+            and calibration_required <= set(calibration_table.columns)
+            else "FAIL",
+            "manuscript score and calibration tables include clustered uncertainty columns",
+            "manuscript tables are missing clustered uncertainty columns",
+            {
+                "score_missing": sorted(score_required - set(score_table.columns)),
+                "calibration_missing": sorted(
+                    calibration_required - set(calibration_table.columns)
+                ),
+            },
+        ),
+        _check(
             "phase_9",
             "reporting_limitations",
-            "PASS" if "simulated" in limitations and "unknown" in limitations else "FAIL",
+            "PASS"
+            if "simulated" in limitations and "taxonomy" in limitations and "cluster" in limitations
+            else "FAIL",
             "manuscript manifests record simulated-edge and taxonomy-coverage limitations",
             "manuscript manifests lack key limitation language",
             {"limitations": limitations},
@@ -993,7 +1140,8 @@ def _semantics_markdown(
         "- Domain/category taxonomy is rule-based and audited, but low-confidence title, "
         "ambiguous, and unknown assignments remain non-confirmatory.",
         "- `event_family_id` uses audited regex grouping where available and explicit "
-        "event_id/contract_id fallbacks elsewhere; clustered inference remains Phase 13.",
+        "event_id/contract_id fallbacks elsewhere; Phase 13 inference resamples these "
+        "event-family clusters.",
         "- Edge outputs remain simulated expected-value screens, not executable trading profits.",
         "",
         "## Phase Status",
@@ -1071,6 +1219,18 @@ def _configured_artifacts(config: FinalAuditConfig) -> dict[str, Path]:
         "walkforward_calibrator_fits": config.walkforward_dir / "calibrator_fits.parquet",
         "edge_summary": config.edge_dir / "summary.json",
         "edge_candidates": config.edge_dir / "edge_candidates.parquet",
+        "inference_summary": config.inference_dir / "summary.json",
+        "inference_score_intervals": config.inference_dir / "score_intervals.parquet",
+        "inference_paired_score_differences": (
+            config.inference_dir / "paired_score_differences.parquet"
+        ),
+        "inference_calibration_intervals": config.inference_dir / "calibration_intervals.parquet",
+        "inference_multiple_comparison_adjustments": (
+            config.inference_dir / "multiple_comparison_adjustments.parquet"
+        ),
+        "inference_paired_loss_diagnostics": (
+            config.inference_dir / "paired_loss_diagnostics.parquet"
+        ),
         "robustness_summary": config.robustness_dir / "summary.json",
         "figure_manifest": config.figure_manifest_path,
         "table_manifest": config.table_manifest_path,
@@ -1090,11 +1250,12 @@ def _artifact_paths(audit_dir: Path) -> dict[str, Path]:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def _parquet_columns(path: Path) -> list[str]:
-    return list(pq.ParquetFile(path).schema_arrow.names)
+    parquet = pq.ParquetFile(path)  # type: ignore[no-untyped-call]
+    return list(parquet.schema_arrow.names)
 
 
 def _all_unknown(values: pd.Series) -> bool:

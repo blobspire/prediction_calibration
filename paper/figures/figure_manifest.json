@@ -1,9 +1,10 @@
 {
   "effective_config": {
     "config_path": "configs/reporting.yaml",
-    "config_sha256": "d532ac0b5b8b73ff8851ca670109d7bc0e83c19a364a0c72d4ca041d83254164",
+    "config_sha256": "531d3161d6a34b19947ea14895e82c690d9d24a647cc01151ef50a8327467430",
     "inputs": {
       "edge_artifact_dir": "data/artifacts/edge_sim",
+      "inference_artifact_dir": "data/artifacts/inference",
       "raw_baseline_artifact_dir": "data/artifacts/raw_baseline",
       "walkforward_artifact_dir": "data/artifacts/walkforward"
     },
@@ -79,12 +80,18 @@
     "Manuscript outputs consume saved result artifacts and do not recompute core models.",
     "Domain/category manuscript outputs remain exploratory because taxonomy coverage includes lower-confidence title rules plus ambiguous and unknown rows.",
     "Edge outputs are simulated expected-value screens, not executable trading profits.",
+    "Score intervals and p-values use event-family clustered inference artifacts.",
     "Artifact run label is full."
   ],
   "source_artifacts": {
     "edge_summary": "data/artifacts/edge_sim/summary.json",
     "edge_summary_by_model_tier": "data/artifacts/edge_sim/edge_summary_by_model_tier.parquet",
     "edge_summary_by_tier": "data/artifacts/edge_sim/edge_summary_by_tier.parquet",
+    "inference_calibration_intervals": "data/artifacts/inference/calibration_intervals.parquet",
+    "inference_multiple_comparison_adjustments": "data/artifacts/inference/multiple_comparison_adjustments.parquet",
+    "inference_paired_score_differences": "data/artifacts/inference/paired_score_differences.parquet",
+    "inference_score_intervals": "data/artifacts/inference/score_intervals.parquet",
+    "inference_summary": "data/artifacts/inference/summary.json",
     "raw_baseline_reliability_bins": "data/artifacts/raw_baseline/reliability_bins.parquet",
     "raw_baseline_summary": "data/artifacts/raw_baseline/summary.json",
     "walkforward_aggregate_metrics": "data/artifacts/walkforward/aggregate_metrics.parquet",

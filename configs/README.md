@@ -15,8 +15,9 @@ Current configs:
 - `presentation.yaml`: slide-ready raw-baseline presentation figure inputs, output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values.
 - `validation.yaml`: forecast-time expanding walk-forward split inputs, outputs, monthly train/validation/test windows, event-family fallback policy, and strict overlap leakage rule.
 - `models.yaml`: reusable recalibrator defaults, enabled simple calibrators, probability/outcome columns, prediction clipping epsilon, fit controls, and walk-forward evaluation artifact settings.
+- `inference.yaml`: Phase 13 clustered uncertainty inputs, output directory, event-family cluster bootstrap settings, confidence level, FDR settings, groupings, and liquidity/staleness bucket definitions.
 - `backtest.yaml`: conservative taker-only YES-side edge-screen inputs, output directory, Kalshi-style fee proxy, capital-lockup assumption, optional staleness/liquidity filters, and fee/spread/slippage friction tiers.
-- `reporting.yaml`: manuscript figure/table artifact inputs, `paper/` output directories, horizon/model ordering, figure/table formats, metric scope, and explicit full-vs-smoke run label.
+- `reporting.yaml`: manuscript figure/table artifact inputs, including Phase 13 inference artifacts, `paper/` output directories, horizon/model ordering, figure/table formats, metric scope, and explicit full-vs-smoke run label.
 - `robustness.yaml`: non-confirmatory robustness diagnostics for snapshot-method slices, liquidity filters, domain-exclusion availability, and friction-assumption sensitivity. Outputs are separate from primary artifacts.
 - `replication_small.yaml`: deterministic small-sample paper replication path starting from cleaned interim Kalshi tables and writing under replication-specific processed/artifact/paper directories.
-- `final_audit.yaml`: Phase 11 saved-artifact and data-semantics audit inputs, expected horizons/models, hard-fail versus partial severity rules, known partial limitations, and output paths for final audit reports.
+- `final_audit.yaml`: Phase 11+ saved-artifact and data-semantics audit inputs, expected horizons/models, Phase 13 inference artifact checks, hard-fail versus partial severity rules, known partial limitations, and output paths for final audit reports.

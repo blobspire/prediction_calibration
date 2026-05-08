@@ -24,6 +24,7 @@ class ReportingConfig:
     raw_baseline_artifact_dir: Path
     walkforward_artifact_dir: Path
     edge_artifact_dir: Path
+    inference_artifact_dir: Path
     figure_dir: Path
     table_dir: Path
     artifact_run_label: str
@@ -69,6 +70,7 @@ def load_reporting_config(path: Path) -> ReportingConfig:
         raw_baseline_artifact_dir=Path(_required(inputs, "raw_baseline_artifact_dir")),
         walkforward_artifact_dir=Path(_required(inputs, "walkforward_artifact_dir")),
         edge_artifact_dir=Path(_required(inputs, "edge_artifact_dir")),
+        inference_artifact_dir=Path(_required(inputs, "inference_artifact_dir")),
         figure_dir=Path(_required(outputs, "figure_dir")),
         table_dir=Path(_required(outputs, "table_dir")),
         artifact_run_label=str(_required(reporting, "artifact_run_label")),
@@ -103,16 +105,35 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
     raw_summary = _read_json(sources["raw_baseline_summary"])
     walkforward_summary = _read_json(sources["walkforward_summary"])
     edge_run_summary = _read_json(sources["edge_summary"])
+    inference_summary = _read_json(sources["inference_summary"])
+    score_intervals = pd.read_parquet(sources["inference_score_intervals"])
+    paired_differences = pd.read_parquet(sources["inference_paired_score_differences"])
+    calibration_intervals = pd.read_parquet(sources["inference_calibration_intervals"])
 
     tables = {
-        "overall_score_comparison": _overall_score_table(aggregate, config),
-        "horizon_score_comparison": _horizon_score_table(aggregate, config),
-        "calibration_intercept_slope": _calibration_table(aggregate, config),
+        "overall_score_comparison": _overall_score_table(
+            aggregate,
+            score_intervals,
+            paired_differences,
+            config,
+        ),
+        "horizon_score_comparison": _horizon_score_table(
+            aggregate,
+            score_intervals,
+            paired_differences,
+            config,
+        ),
+        "calibration_intercept_slope": _calibration_table(
+            aggregate,
+            calibration_intervals,
+            config,
+        ),
         "edge_friction_sensitivity": _edge_table(edge_summary, config),
         "artifact_source_limitations": _limitations_table(
             raw_summary,
             walkforward_summary,
             edge_run_summary,
+            inference_summary,
             config,
         ),
     }
@@ -153,6 +174,17 @@ def reporting_source_paths(config: ReportingConfig) -> dict[str, Path]:
         "edge_summary_by_model_tier": (
             config.edge_artifact_dir / "edge_summary_by_model_tier.parquet"
         ),
+        "inference_summary": config.inference_artifact_dir / "summary.json",
+        "inference_score_intervals": config.inference_artifact_dir / "score_intervals.parquet",
+        "inference_paired_score_differences": (
+            config.inference_artifact_dir / "paired_score_differences.parquet"
+        ),
+        "inference_calibration_intervals": (
+            config.inference_artifact_dir / "calibration_intervals.parquet"
+        ),
+        "inference_multiple_comparison_adjustments": (
+            config.inference_artifact_dir / "multiple_comparison_adjustments.parquet"
+        ),
     }
 
 
@@ -164,6 +196,7 @@ def effective_reporting_config(config: ReportingConfig) -> dict[str, Any]:
             "raw_baseline_artifact_dir": str(config.raw_baseline_artifact_dir),
             "walkforward_artifact_dir": str(config.walkforward_artifact_dir),
             "edge_artifact_dir": str(config.edge_artifact_dir),
+            "inference_artifact_dir": str(config.inference_artifact_dir),
         },
         "outputs": {
             "figure_dir": str(config.figure_dir),
@@ -194,8 +227,9 @@ def validate_required_artifacts(config: ReportingConfig) -> dict[str, Path]:
     if missing:
         raise ReportingError(
             "missing saved result artifacts for manuscript outputs. Run the full Phase 7 "
-            "walk-forward evaluation and Phase 8 edge simulation first, or explicitly "
-            f"override artifact directories for a smoke/draft run. Missing: {missing}"
+            "walk-forward evaluation, Phase 8 edge simulation, and Phase 13 inference "
+            "first, or explicitly override artifact directories for a smoke/draft run. "
+            f"Missing: {missing}"
         )
     if config.artifact_run_label == "full":
         smoke_paths = [
@@ -203,6 +237,7 @@ def validate_required_artifacts(config: ReportingConfig) -> dict[str, Path]:
             for path in (
                 config.walkforward_artifact_dir,
                 config.edge_artifact_dir,
+                config.inference_artifact_dir,
             )
             if "smoke" in str(path)
         ]
@@ -214,20 +249,51 @@ def validate_required_artifacts(config: ReportingConfig) -> dict[str, Path]:
     return sources
 
 
-def _overall_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+def _overall_score_table(
+    aggregate: pd.DataFrame,
+    score_intervals: pd.DataFrame,
+    paired_differences: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
     rows = _metric_rows(aggregate, config, grouping_name="overall")
     rows = _ordered_models(rows, config)
     rows = _add_raw_deltas(rows)
+    rows = _add_score_inference_columns(
+        rows,
+        score_intervals,
+        paired_differences,
+        grouping_name="overall",
+    )
     return rows[
         [
             "model_name",
             "row_count",
             "brier_score",
             "brier_delta_vs_raw",
+            "brier_score_ci_lower",
+            "brier_score_ci_upper",
+            "brier_delta_ci_lower",
+            "brier_delta_ci_upper",
+            "brier_delta_p_value",
+            "brier_delta_q_value",
             "log_loss",
             "log_loss_delta_vs_raw",
+            "log_loss_ci_lower",
+            "log_loss_ci_upper",
+            "log_loss_delta_ci_lower",
+            "log_loss_delta_ci_upper",
+            "log_loss_delta_p_value",
+            "log_loss_delta_q_value",
             "expected_calibration_error",
             "ece_delta_vs_raw",
+            "ece_ci_lower",
+            "ece_ci_upper",
+            "ece_delta_ci_lower",
+            "ece_delta_ci_upper",
+            "ece_delta_p_value",
+            "ece_delta_q_value",
+            "effective_cluster_count",
+            "cluster_count",
             "calibration_intercept",
             "calibration_slope",
             "calibration_status",
@@ -235,10 +301,21 @@ def _overall_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd
     ].copy()
 
 
-def _horizon_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+def _horizon_score_table(
+    aggregate: pd.DataFrame,
+    score_intervals: pd.DataFrame,
+    paired_differences: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
     rows = _metric_rows(aggregate, config, grouping_name="horizon")
     rows = _ordered_models(_ordered_horizons(rows, config), config)
     rows = _add_raw_deltas(rows, group_columns=("horizon_name",))
+    rows = _add_score_inference_columns(
+        rows,
+        score_intervals,
+        paired_differences,
+        grouping_name="horizon",
+    )
     return rows[
         [
             "horizon_name",
@@ -246,24 +323,57 @@ def _horizon_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd
             "row_count",
             "brier_score",
             "brier_delta_vs_raw",
+            "brier_score_ci_lower",
+            "brier_score_ci_upper",
+            "brier_delta_ci_lower",
+            "brier_delta_ci_upper",
+            "brier_delta_p_value",
+            "brier_delta_q_value",
             "log_loss",
             "log_loss_delta_vs_raw",
+            "log_loss_ci_lower",
+            "log_loss_ci_upper",
+            "log_loss_delta_ci_lower",
+            "log_loss_delta_ci_upper",
+            "log_loss_delta_p_value",
+            "log_loss_delta_q_value",
             "expected_calibration_error",
             "ece_delta_vs_raw",
+            "ece_ci_lower",
+            "ece_ci_upper",
+            "ece_delta_ci_lower",
+            "ece_delta_ci_upper",
+            "ece_delta_p_value",
+            "ece_delta_q_value",
+            "effective_cluster_count",
+            "cluster_count",
         ]
     ].copy()
 
 
-def _calibration_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+def _calibration_table(
+    aggregate: pd.DataFrame,
+    calibration_intervals: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
     rows = _metric_rows(aggregate, config, grouping_name="horizon")
     rows = _ordered_models(_ordered_horizons(rows, config), config)
+    rows = _add_calibration_inference_columns(rows, calibration_intervals)
     return rows[
         [
             "horizon_name",
             "model_name",
             "row_count",
             "calibration_intercept",
+            "calibration_intercept_ci_lower",
+            "calibration_intercept_ci_upper",
+            "calibration_intercept_p_value",
             "calibration_slope",
+            "calibration_slope_ci_lower",
+            "calibration_slope_ci_upper",
+            "calibration_slope_p_value",
+            "effective_cluster_count",
+            "cluster_count",
             "calibration_status",
         ]
     ].copy()
@@ -294,6 +404,7 @@ def _limitations_table(
     raw_summary: dict[str, Any],
     walkforward_summary: dict[str, Any],
     edge_summary: dict[str, Any],
+    inference_summary: dict[str, Any],
     config: ReportingConfig,
 ) -> pd.DataFrame:
     rows: list[dict[str, str]] = [
@@ -313,10 +424,166 @@ def _limitations_table(
         ("raw_baseline", raw_summary),
         ("walkforward", walkforward_summary),
         ("edge_simulation", edge_summary),
+        ("inference", inference_summary),
     ):
         for limitation in summary.get("limitations", []):
             rows.append({"source": source, "limitation": str(limitation)})
     return pd.DataFrame(rows)
+
+
+def _add_score_inference_columns(
+    rows: pd.DataFrame,
+    score_intervals: pd.DataFrame,
+    paired_differences: pd.DataFrame,
+    *,
+    grouping_name: str,
+) -> pd.DataFrame:
+    output = rows.copy()
+    metric_specs = (
+        ("brier_score", "brier_score", "brier_delta"),
+        ("log_loss", "log_loss", "log_loss_delta"),
+        ("expected_calibration_error", "ece", "ece_delta"),
+    )
+    score_rows = score_intervals[score_intervals["grouping_name"] == grouping_name].copy()
+    paired_rows = paired_differences[
+        paired_differences["grouping_name"] == grouping_name
+    ].copy()
+    for metric_name, score_prefix, delta_prefix in metric_specs:
+        score_metric = score_rows[score_rows["metric_name"] == metric_name][
+            [
+                "model_name",
+                "group_key",
+                "ci_lower",
+                "ci_upper",
+                "cluster_count",
+                "effective_cluster_count",
+                "bootstrap_status",
+            ]
+        ].rename(
+            columns={
+                "ci_lower": f"{score_prefix}_ci_lower",
+                "ci_upper": f"{score_prefix}_ci_upper",
+                "bootstrap_status": f"{score_prefix}_bootstrap_status",
+            }
+        )
+        if not score_metric.empty:
+            output = output.merge(
+                score_metric,
+                on=["model_name", "group_key"],
+                how="left",
+                validate="one_to_one",
+                suffixes=("", f"_{score_prefix}"),
+            )
+        paired_metric = paired_rows[paired_rows["metric_name"] == metric_name][
+            [
+                "model_name",
+                "group_key",
+                "ci_lower",
+                "ci_upper",
+                "p_value",
+                "q_value",
+                "reject_fdr",
+                "bootstrap_status",
+            ]
+        ].rename(
+            columns={
+                "ci_lower": f"{delta_prefix}_ci_lower",
+                "ci_upper": f"{delta_prefix}_ci_upper",
+                "p_value": f"{delta_prefix}_p_value",
+                "q_value": f"{delta_prefix}_q_value",
+                "reject_fdr": f"{delta_prefix}_reject_fdr",
+                "bootstrap_status": f"{delta_prefix}_bootstrap_status",
+            }
+        )
+        if not paired_metric.empty:
+            output = output.merge(
+                paired_metric,
+                on=["model_name", "group_key"],
+                how="left",
+                validate="one_to_one",
+            )
+    if "cluster_count" not in output.columns:
+        output["cluster_count"] = pd.NA
+    if "effective_cluster_count" not in output.columns:
+        output["effective_cluster_count"] = pd.NA
+    for column in _score_inference_columns():
+        if column not in output.columns:
+            output[column] = pd.NA
+    return output
+
+
+def _add_calibration_inference_columns(
+    rows: pd.DataFrame,
+    calibration_intervals: pd.DataFrame,
+) -> pd.DataFrame:
+    output = rows.copy()
+    source = calibration_intervals[calibration_intervals["grouping_name"] == "horizon"].copy()
+    for parameter in ("calibration_intercept", "calibration_slope"):
+        metric = source[source["parameter"] == parameter][
+            [
+                "model_name",
+                "group_key",
+                "ci_lower",
+                "ci_upper",
+                "p_value",
+                "cluster_count",
+                "effective_cluster_count",
+                "bootstrap_status",
+            ]
+        ].rename(
+            columns={
+                "ci_lower": f"{parameter}_ci_lower",
+                "ci_upper": f"{parameter}_ci_upper",
+                "p_value": f"{parameter}_p_value",
+                "bootstrap_status": f"{parameter}_bootstrap_status",
+            }
+        )
+        if not metric.empty:
+            output = output.merge(
+                metric,
+                on=["model_name", "group_key"],
+                how="left",
+                validate="one_to_one",
+                suffixes=("", f"_{parameter}"),
+            )
+    if "cluster_count" not in output.columns:
+        output["cluster_count"] = pd.NA
+    if "effective_cluster_count" not in output.columns:
+        output["effective_cluster_count"] = pd.NA
+    for column in (
+        "calibration_intercept_ci_lower",
+        "calibration_intercept_ci_upper",
+        "calibration_intercept_p_value",
+        "calibration_slope_ci_lower",
+        "calibration_slope_ci_upper",
+        "calibration_slope_p_value",
+    ):
+        if column not in output.columns:
+            output[column] = pd.NA
+    return output
+
+
+def _score_inference_columns() -> tuple[str, ...]:
+    return (
+        "brier_score_ci_lower",
+        "brier_score_ci_upper",
+        "brier_delta_ci_lower",
+        "brier_delta_ci_upper",
+        "brier_delta_p_value",
+        "brier_delta_q_value",
+        "log_loss_ci_lower",
+        "log_loss_ci_upper",
+        "log_loss_delta_ci_lower",
+        "log_loss_delta_ci_upper",
+        "log_loss_delta_p_value",
+        "log_loss_delta_q_value",
+        "ece_ci_lower",
+        "ece_ci_upper",
+        "ece_delta_ci_lower",
+        "ece_delta_ci_upper",
+        "ece_delta_p_value",
+        "ece_delta_q_value",
+    )
 
 
 def _metric_rows(
@@ -474,6 +741,7 @@ def _common_limitations(config: ReportingConfig) -> list[str]:
         "Domain/category manuscript outputs remain exploratory because taxonomy coverage "
         "includes lower-confidence title rules plus ambiguous and unknown rows.",
         "Edge outputs are simulated expected-value screens, not executable trading profits.",
+        "Score intervals and p-values use event-family clustered inference artifacts.",
         f"Artifact run label is {config.artifact_run_label}.",
     ]
 

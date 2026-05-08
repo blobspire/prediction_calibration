@@ -16,9 +16,10 @@ Current data-build scripts:
 - `make_presentation_figures.py`: current raw-baseline artifacts to slide-ready PNG/SVG figures under `data/artifacts/presentation/figures/`.
 - `build_walkforward_splits.py`: processed contract-horizon/modeling panel to strict forecast-time expanding walk-forward split assignments and integrity diagnostics.
 - `fit_walkforward.py`: modeling panel plus walk-forward splits to raw-vs-recalibrated fold predictions, metrics, calibrator fits, leakage diagnostics, and summary artifacts.
+- `run_inference.py`: saved walk-forward predictions plus the modeling panel to Phase 13 event-family clustered confidence intervals, paired score differences, FDR adjustments, calibration intervals, and paired-loss diagnostics.
 - `run_edge_sim.py`: walk-forward predictions plus modeling-panel metadata to conservative taker-only YES-side edge screens under configurable fee, spread, slippage, and capital-lockup assumptions.
-- `make_figures.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready figures under `paper/figures/`.
-- `make_tables.py`: saved full-run raw/walk-forward/edge artifacts to manuscript-ready CSV, Markdown, and LaTeX tables under `paper/tables/`.
+- `make_figures.py`: saved full-run raw/walk-forward/edge/inference artifacts to manuscript-ready figures under `paper/figures/`.
+- `make_tables.py`: saved full-run raw/walk-forward/edge/inference artifacts to manuscript-ready CSV, Markdown, and LaTeX tables with clustered uncertainty columns under `paper/tables/`.
 - `run_robustness.py`: saved full-run artifacts to separately labeled non-confirmatory robustness tables for snapshot methods, liquidity filters, domain-exclusion sensitivity, and friction assumptions.
 - `run_small_sample_pipeline.py`: deterministic small-sample end-to-end replication command path from cleaned interim data through paper figures/tables; supports `--dry-run` for command-order verification.
-- `audit_final_artifacts.py`: Phase 11 reporting-only audit of saved Phase 2-10 artifacts and data semantics, writing PASS/PARTIAL/FAIL checks under `data/artifacts/final_audit/` and `docs/audits/`.
+- `audit_final_artifacts.py`: Phase 11+ reporting-only audit of saved Phase 2-13 artifacts and data semantics, writing PASS/PARTIAL/FAIL checks under `data/artifacts/final_audit/` and `docs/audits/`.

@@ -16,3 +16,7 @@
 | edge_simulation | The taker fee is a configurable Kalshi-style proxy, not a versioned audit of exact historical exchange billing. |
 | edge_simulation | Spread and slippage tiers are conservative haircuts, not observed execution costs. |
 | edge_simulation | Summaries are equal contract-horizon prediction rows and do not use trade weights. |
+| inference | Inference consumes saved walk-forward prediction artifacts and does not refit calibrators or rebuild data. |
+| inference | Confirmatory intervals resample audited event-family clusters, not iid rows or trades. |
+| inference | Point estimates remain equal-contract over contract-horizon prediction rows. |
+| inference | Domain/category inference remains conditional on taxonomy confidence, ambiguity, and unknown-rate audits. |

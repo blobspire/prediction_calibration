@@ -238,7 +238,7 @@ data/processed/walkforward_split_summary.json
 Current event-family identifiers are audited but still mixed: regex grouping is
 used where configured, and explicit `event_id` or `contract_id` fallbacks are
 labeled where stronger grouping is unavailable. Leakage diagnostics are useful,
-but clustered confirmatory inference remains Phase 13.
+and Phase 13 clustered inference now resamples these event-family IDs.
 
 Use simple recalibrators from Python:
 
@@ -266,7 +266,8 @@ from each fold, then removes any fit row whose outcome was not resolved by that
 fold's test start. Raw and recalibrated models are scored on identical future
 test row IDs. Event-family overlaps are reported but not filtered; current
 `event_family_id` values combine audited regex grouping with explicit event and
-contract fallbacks, while clustered handling is deferred to Phase 13.
+contract fallbacks. Phase 13 inference handles uncertainty by resampling these
+event-family clusters.
 
 The script writes:
 
@@ -278,6 +279,32 @@ data/artifacts/walkforward/calibrator_fits.parquet
 data/artifacts/walkforward/event_family_leakage.parquet
 data/artifacts/walkforward/summary.json
 ```
+
+Run clustered uncertainty for raw versus recalibrated walk-forward results:
+
+```bash
+uv run python scripts/run_inference.py --config configs/inference.yaml
+```
+
+The inference script reads saved walk-forward predictions and the modeling panel;
+it does not refit calibrators or rebuild snapshots. Confirmatory uncertainty uses
+event-family clustered bootstrap only, never iid row or trade bootstrap. It
+writes:
+
+```text
+data/artifacts/inference/score_intervals.parquet
+data/artifacts/inference/paired_score_differences.parquet
+data/artifacts/inference/calibration_intervals.parquet
+data/artifacts/inference/multiple_comparison_adjustments.parquet
+data/artifacts/inference/paired_loss_diagnostics.parquet
+data/artifacts/inference/bootstrap_replicates.parquet
+data/artifacts/inference/summary.json
+```
+
+Manuscript score tables merge these artifacts to include confidence intervals,
+paired effect sizes, bootstrap p-values, Benjamini-Hochberg q-values, and
+effective event-family cluster counts. Domain/category inference remains
+conditional on taxonomy confidence and ambiguity.
 
 For a quick smoke run on the first fold:
 
@@ -344,6 +371,7 @@ The reporting config defaults to full artifact directories:
 data/artifacts/raw_baseline/
 data/artifacts/walkforward/
 data/artifacts/edge_sim/
+data/artifacts/inference/
 ```
 
 and writes to:
@@ -353,10 +381,11 @@ paper/figures/
 paper/tables/
 ```
 
-These scripts do not fit models or recompute edge screens. They fail clearly if
-the full walk-forward or edge artifacts are missing. For a deliberate draft run
-from the current smoke artifacts, pass `--artifact-run-label smoke` plus
-`--walkforward-dir` and `--edge-dir` overrides.
+These scripts do not fit models, recompute core metrics, or rerun edge screens.
+They fail clearly if the full walk-forward, edge, or inference artifacts are
+missing. For a deliberate draft run from smoke artifacts, pass
+`--artifact-run-label smoke` plus artifact-dir overrides including
+`--inference-dir`.
 
 Run non-confirmatory robustness diagnostics from saved full-run artifacts:
 

@@ -17,6 +17,7 @@ inputs:
   raw_baseline_dir: data/artifacts/raw_baseline
   walkforward_dir: data/artifacts/walkforward
   edge_dir: data/artifacts/edge_sim
+  inference_dir: data/artifacts/inference
   robustness_dir: data/artifacts/robustness
   figure_manifest_path: paper/figures/figure_manifest.json
   table_manifest_path: paper/tables/table_manifest.json
@@ -36,7 +37,7 @@ audit:
     - event_family_regex_and_fallback_mix
     - edge_outputs_simulated_not_executable
     - quote_depth_unavailable
-    - clustered_uncertainty_not_implemented
+    - clustered_uncertainty_uses_event_family_proxy_where_regex_unavailable
   severity_rules:
     hard_fail:
       - missing_required_artifact
@@ -44,6 +45,7 @@ audit:
       - snapshot_or_feature_lookahead
       - split_time_order_failure
       - prediction_panel_key_mismatch
+      - iid_or_row_bootstrap_in_confirmatory_inference
       - unsupported_executable_profit_language
     partial_allowed:
       - resolution_ts_close_time_not_separately_retained

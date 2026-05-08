@@ -2,6 +2,7 @@ inputs:
   raw_baseline_artifact_dir: data/artifacts/raw_baseline
   walkforward_artifact_dir: data/artifacts/walkforward
   edge_artifact_dir: data/artifacts/edge_sim
+  inference_artifact_dir: data/artifacts/inference
 
 outputs:
   figure_dir: paper/figures

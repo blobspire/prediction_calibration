@@ -110,6 +110,17 @@ def test_final_audit_fails_on_missing_phase12_taxonomy_columns(tmp_path: Path) -
     assert taxonomy["status"] == "FAIL"
 
 
+def test_final_audit_fails_on_iid_inference_bootstrap(tmp_path: Path) -> None:
+    config = load_final_audit_config(_write_fixture(tmp_path, iid_inference=True))
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    inference = checks[checks["check_id"] == "inference_bootstrap_unit"].iloc[0]
+    assert inference["status"] == "FAIL"
+
+
 def _write_fixture(
     tmp_path: Path,
     *,
@@ -121,6 +132,7 @@ def _write_fixture(
     bad_edge_side: bool = False,
     quote_edge_side: bool = True,
     missing_phase12_taxonomy: bool = False,
+    iid_inference: bool = False,
 ) -> Path:
     raw_repo = tmp_path / "raw_repo"
     raw_repo.mkdir()
@@ -131,10 +143,21 @@ def _write_fixture(
     raw_baseline = tmp_path / "raw_baseline"
     walkforward = tmp_path / "walkforward"
     edge = tmp_path / "edge"
+    inference = tmp_path / "inference"
     robustness = tmp_path / "robustness"
     figures = tmp_path / "figures"
     tables = tmp_path / "tables"
-    for path in (interim, processed, raw_baseline, walkforward, edge, robustness, figures, tables):
+    for path in (
+        interim,
+        processed,
+        raw_baseline,
+        walkforward,
+        edge,
+        inference,
+        robustness,
+        figures,
+        tables,
+    ):
         path.mkdir()
 
     panel = _panel(unknown_taxonomy=unknown_taxonomy)
@@ -189,6 +212,7 @@ def _write_fixture(
     _write_raw_baseline(raw_baseline)
     _write_walkforward(walkforward, bad_prediction_key=bad_prediction_key)
     _write_edge(edge, bad_edge_side=bad_edge_side)
+    _write_inference(inference, iid_inference=iid_inference)
     _write_reporting(figures, tables)
     _write_robustness(robustness)
 
@@ -215,6 +239,7 @@ inputs:
   raw_baseline_dir: {raw_baseline}
   walkforward_dir: {walkforward}
   edge_dir: {edge}
+  inference_dir: {inference}
   robustness_dir: {robustness}
   figure_manifest_path: {figures / "figure_manifest.json"}
   table_manifest_path: {tables / "table_manifest.json"}
@@ -437,17 +462,117 @@ def _write_edge(edge: Path, *, bad_edge_side: bool) -> None:
     )
 
 
+def _write_inference(inference: Path, *, iid_inference: bool) -> None:
+    bootstrap_unit = "row_id" if iid_inference else "event_family_id"
+    (inference / "summary.json").write_text(
+        json.dumps(
+            {
+                "bootstrap_unit": bootstrap_unit,
+                "bootstrap_iterations": 20,
+                "limitations": ["event-family clustered inference"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    score = pd.DataFrame(
+        {
+            "model_name": ["raw", "platt"],
+            "metric_name": ["brier_score", "brier_score"],
+            "grouping_name": ["overall", "overall"],
+            "group_key": ["overall", "overall"],
+            "estimate": [0.1, 0.09],
+            "ci_lower": [0.08, 0.07],
+            "ci_upper": [0.12, 0.11],
+            "effective_cluster_count": [2.0, 2.0],
+            "bootstrap_unit": [bootstrap_unit, bootstrap_unit],
+            "aggregation_mode": ["equal_contract", "equal_contract"],
+        }
+    )
+    paired = pd.DataFrame(
+        {
+            "baseline_model": ["raw"],
+            "model_name": ["platt"],
+            "metric_name": ["brier_score"],
+            "grouping_name": ["overall"],
+            "group_key": ["overall"],
+            "estimate_delta": [-0.01],
+            "ci_lower": [-0.02],
+            "ci_upper": [-0.001],
+            "p_value": [0.02],
+            "q_value": [0.03],
+            "effective_cluster_count": [2.0],
+            "bootstrap_unit": [bootstrap_unit],
+            "aggregation_mode": ["equal_contract"],
+        }
+    )
+    calibration = pd.DataFrame(
+        {
+            "model_name": ["raw"],
+            "parameter": ["calibration_slope"],
+            "grouping_name": ["horizon"],
+            "group_key": ["1d"],
+            "estimate": [1.0],
+            "ci_lower": [0.9],
+            "ci_upper": [1.1],
+            "p_value": [1.0],
+            "effective_cluster_count": [2.0],
+            "bootstrap_unit": [bootstrap_unit],
+        }
+    )
+    diagnostics = pd.DataFrame(
+        {
+            "model_name": ["platt"],
+            "metric_name": ["brier_score"],
+            "grouping_name": ["overall"],
+            "group_key": ["overall"],
+            "cluster_count": [2],
+            "mean_cluster_loss_diff": [-0.01],
+        }
+    )
+    score.to_parquet(inference / "score_intervals.parquet", index=False)
+    paired.to_parquet(inference / "paired_score_differences.parquet", index=False)
+    calibration.to_parquet(inference / "calibration_intervals.parquet", index=False)
+    paired.to_parquet(inference / "multiple_comparison_adjustments.parquet", index=False)
+    diagnostics.to_parquet(inference / "paired_loss_diagnostics.parquet", index=False)
+
+
 def _write_reporting(figures: Path, tables: Path) -> None:
     manifest = {
         "effective_config": {"reporting": {"artifact_run_label": "full"}},
         "source_artifacts": {
             "walkforward": "data/artifacts/walkforward",
             "edge": "data/artifacts/edge_sim",
+            "inference": "data/artifacts/inference",
         },
-        "limitations": ["simulated edge screens", "unknown taxonomy remains limited"],
+        "limitations": [
+            "simulated edge screens",
+            "taxonomy coverage remains limited",
+            "clustered inference intervals included",
+        ],
     }
     (figures / "figure_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (tables / "table_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    pd.DataFrame(
+        {
+            "model_name": ["raw", "platt"],
+            "brier_score_ci_lower": [0.08, 0.07],
+            "brier_delta_p_value": [None, 0.02],
+            "brier_delta_q_value": [None, 0.03],
+            "log_loss_ci_lower": [0.2, 0.19],
+            "ece_delta_q_value": [None, 0.04],
+            "effective_cluster_count": [2.0, 2.0],
+        }
+    ).to_csv(tables / "overall_score_comparison.csv", index=False)
+    pd.DataFrame(
+        {
+            "model_name": ["raw"],
+            "calibration_intercept_ci_lower": [-0.1],
+            "calibration_intercept_p_value": [0.5],
+            "calibration_slope_ci_lower": [0.9],
+            "calibration_slope_p_value": [1.0],
+            "effective_cluster_count": [2.0],
+        }
+    ).to_csv(tables / "calibration_intercept_slope.csv", index=False)
 
 
 def _write_robustness(robustness: Path) -> None:

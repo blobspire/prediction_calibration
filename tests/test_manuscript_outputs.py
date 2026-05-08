@@ -16,6 +16,7 @@ def test_reporting_config_loads(tmp_path: Path) -> None:
 
     assert config.walkforward_artifact_dir == tmp_path / "walkforward"
     assert config.edge_artifact_dir == tmp_path / "edge"
+    assert config.inference_artifact_dir == tmp_path / "inference"
     assert config.figure_dir == tmp_path / "figures"
     assert config.table_dir == tmp_path / "tables"
     assert config.artifact_run_label == "full"
@@ -66,7 +67,14 @@ def test_make_manuscript_tables_writes_outputs(tmp_path: Path) -> None:
             assert Path(path).exists()
     overall = pd.read_csv(tmp_path / "tables" / "overall_score_comparison.csv")
     assert "brier_delta_vs_raw" in overall.columns
+    assert "brier_delta_ci_lower" in overall.columns
+    assert "brier_delta_p_value" in overall.columns
+    assert "brier_delta_q_value" in overall.columns
+    assert "effective_cluster_count" in overall.columns
     assert overall.loc[overall["model_name"] == "raw", "brier_delta_vs_raw"].iloc[0] == 0.0
+    calibration = pd.read_csv(tmp_path / "tables" / "calibration_intercept_slope.csv")
+    assert "calibration_slope_ci_lower" in calibration.columns
+    assert "calibration_slope_p_value" in calibration.columns
 
 
 def test_manuscript_scripts_support_overrides(tmp_path: Path) -> None:
@@ -126,7 +134,7 @@ def test_scripts_fail_clearly_when_full_artifacts_missing(tmp_path: Path) -> Non
     )
 
     assert result.returncode != 0
-    assert "Run the full Phase 7 walk-forward evaluation and Phase 8 edge simulation" in (
+    assert "Run the full Phase 7 walk-forward evaluation, Phase 8 edge simulation" in (
         result.stderr
     )
 
@@ -150,6 +158,7 @@ inputs:
   raw_baseline_artifact_dir: {tmp_path / "raw_baseline"}
   walkforward_artifact_dir: {tmp_path / "walkforward"}
   edge_artifact_dir: {tmp_path / "edge"}
+  inference_artifact_dir: {tmp_path / "inference"}
 outputs:
   figure_dir: {tmp_path / "figures"}
   table_dir: {tmp_path / "tables"}
@@ -174,9 +183,11 @@ def _write_artifacts(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw_baseline"
     walk_dir = tmp_path / "walkforward"
     edge_dir = tmp_path / "edge"
+    inference_dir = tmp_path / "inference"
     raw_dir.mkdir()
     walk_dir.mkdir()
     edge_dir.mkdir()
+    inference_dir.mkdir()
     (raw_dir / "summary.json").write_text(
         json.dumps({"limitations": ["raw limitation"]}),
         encoding="utf-8",
@@ -198,6 +209,7 @@ def _write_artifacts(tmp_path: Path) -> None:
         edge_dir / "edge_summary_by_model_tier.parquet",
         index=False,
     )
+    _write_inference(inference_dir)
 
 
 def _aggregate_metrics() -> pd.DataFrame:
@@ -342,4 +354,143 @@ def _edge_summary_by_model_tier() -> pd.DataFrame:
                     "selected_mean_simulated_realized_net_per_contract": 0.02 + adjustment,
                 }
             )
+    return pd.DataFrame(rows)
+
+
+def _write_inference(inference_dir: Path) -> None:
+    (inference_dir / "summary.json").write_text(
+        json.dumps(
+            {
+                "bootstrap_unit": "event_family_id",
+                "limitations": ["event-family clustered confidence intervals"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _score_intervals().to_parquet(inference_dir / "score_intervals.parquet", index=False)
+    _paired_differences().to_parquet(
+        inference_dir / "paired_score_differences.parquet",
+        index=False,
+    )
+    _calibration_intervals().to_parquet(
+        inference_dir / "calibration_intervals.parquet",
+        index=False,
+    )
+    _paired_differences()[
+        [
+            "baseline_model",
+            "model_name",
+            "metric_name",
+            "grouping_name",
+            "group_key",
+            "p_value",
+            "q_value",
+            "reject_fdr",
+        ]
+    ].to_parquet(
+        inference_dir / "multiple_comparison_adjustments.parquet",
+        index=False,
+    )
+
+
+def _score_intervals() -> pd.DataFrame:
+    rows = []
+    for grouping_name, group_keys in (
+        ("overall", ["overall"]),
+        ("horizon", ["1d", "close"]),
+    ):
+        for group_key in group_keys:
+            for model_name in ("raw", "platt"):
+                for metric_name in (
+                    "brier_score",
+                    "log_loss",
+                    "expected_calibration_error",
+                ):
+                    rows.append(
+                        {
+                            "model_name": model_name,
+                            "metric_name": metric_name,
+                            "grouping_name": grouping_name,
+                            "group_key": group_key,
+                            "estimate": 0.1,
+                            "ci_lower": 0.08,
+                            "ci_upper": 0.12,
+                            "p_value": 0.0,
+                            "row_count": 20,
+                            "cluster_count": 10,
+                            "effective_cluster_count": 8.5,
+                            "bootstrap_iterations": 20,
+                            "bootstrap_status": "ok",
+                            "bootstrap_unit": "event_family_id",
+                            "ci_method": "event_family_cluster_bootstrap",
+                            "aggregation_mode": "equal_contract",
+                        }
+                    )
+    return pd.DataFrame(rows)
+
+
+def _paired_differences() -> pd.DataFrame:
+    rows = []
+    for grouping_name, group_keys in (
+        ("overall", ["overall"]),
+        ("horizon", ["1d", "close"]),
+    ):
+        for group_key in group_keys:
+            for metric_name in ("brier_score", "log_loss", "expected_calibration_error"):
+                rows.append(
+                    {
+                        "baseline_model": "raw",
+                        "model_name": "platt",
+                        "metric_name": metric_name,
+                        "grouping_name": grouping_name,
+                        "group_key": group_key,
+                        "estimate_delta": -0.01,
+                        "ci_lower": -0.02,
+                        "ci_upper": -0.001,
+                        "p_value": 0.02,
+                        "row_count": 20,
+                        "cluster_count": 10,
+                        "effective_cluster_count": 8.5,
+                        "bootstrap_iterations": 20,
+                        "bootstrap_status": "ok",
+                        "bootstrap_unit": "event_family_id",
+                        "ci_method": "event_family_cluster_bootstrap",
+                        "aggregation_mode": "equal_contract",
+                        "q_value": 0.03,
+                        "reject_fdr": True,
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def _calibration_intervals() -> pd.DataFrame:
+    rows = []
+    for group_key in ("1d", "close"):
+        for model_name in ("raw", "platt"):
+            for parameter, estimate, null_value in (
+                ("calibration_intercept", 0.05, 0.0),
+                ("calibration_slope", 0.95, 1.0),
+            ):
+                rows.append(
+                    {
+                        "model_name": model_name,
+                        "parameter": parameter,
+                        "grouping_name": "horizon",
+                        "group_key": group_key,
+                        "estimate": estimate,
+                        "null_value": null_value,
+                        "ci_lower": estimate - 0.05,
+                        "ci_upper": estimate + 0.05,
+                        "p_value": 0.12,
+                        "row_count": 20,
+                        "cluster_count": 10,
+                        "effective_cluster_count": 8.5,
+                        "bootstrap_iterations": 20,
+                        "bootstrap_status": "ok",
+                        "calibration_status": "converged",
+                        "bootstrap_unit": "event_family_id",
+                        "ci_method": "event_family_cluster_influence_bootstrap",
+                        "aggregation_mode": "equal_contract",
+                    }
+                )
     return pd.DataFrame(rows)
