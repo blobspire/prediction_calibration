@@ -22,13 +22,14 @@ This Phase 11 audit inspects saved artifacts only. It does not rebuild data, ref
 | phase_10 | PASS | 2 | 0 | 0 |
 | phase_13 | PASS | 4 | 0 | 0 |
 | phase_14 | PASS | 6 | 0 | 0 |
+| phase_15 | PASS | 4 | 0 | 0 |
 | phase_1_2 | PASS | 1 | 0 | 0 |
 | phase_2 | PASS | 3 | 0 | 0 |
 | phase_3 | PASS | 7 | 0 | 0 |
 | phase_4 | PASS | 2 | 0 | 0 |
 | phase_4_5 | PASS | 4 | 0 | 0 |
 | phase_5 | PASS | 3 | 0 | 0 |
-| phase_7 | PARTIAL | 7 | 1 | 0 |
+| phase_7 | PASS | 8 | 0 | 0 |
 | phase_8 | PARTIAL | 4 | 1 | 0 |
 | phase_9 | PASS | 3 | 0 | 0 |
 | phase_9_13 | PASS | 2 | 0 | 0 |
@@ -39,7 +40,6 @@ This Phase 11 audit inspects saved artifacts only. It does not rebuild data, ref
 
 | phase | check_id | message |
 | --- | --- | --- |
-| phase_7 | event_family_policy_report_only | event-family overlaps are reported, not filtered; Phase 13 clusters uncertainty by event family but does not exclude overlaps |
 | phase_8 | edge_executability_limitations | edge remains a simulated screen using transaction-price proxies and assumed frictions |
 
 ## Failed Checks
@@ -49,4 +49,4 @@ No failed checks.
 ## Source Config
 
 - Config path: `configs/final_audit.yaml`
-- Config SHA256: `42c0041166844749349294fa3bf3b97b4f1e7f32273d3795925312ddbf4827e8`
+- Config SHA256: `0494a0dd6262268048c167be6fa1a2ecc8ad36be0cc6130e3b83b1afdf55e6eb`

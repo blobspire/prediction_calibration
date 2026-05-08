@@ -21,6 +21,6 @@ Current data-build scripts:
 - `run_edge_sim.py`: walk-forward predictions plus modeling-panel metadata to conservative taker-only YES-side edge screens under configurable fee, spread, slippage, and capital-lockup assumptions.
 - `make_figures.py`: saved full-run raw/walk-forward/edge/inference/decomposition artifacts to manuscript-ready figures under `paper/figures/`.
 - `make_tables.py`: saved full-run raw/walk-forward/edge/inference/decomposition artifacts to manuscript-ready CSV, Markdown, and LaTeX tables with clustered uncertainty and Murphy decomposition columns under `paper/tables/`.
-- `run_robustness.py`: saved full-run artifacts to separately labeled non-confirmatory robustness tables for snapshot methods, liquidity filters, domain-exclusion sensitivity, and friction assumptions.
+- `run_robustness.py`: saved full-run artifacts to separately labeled Phase 15 robustness tables for snapshot methods, stale/liquidity filters, weighting sensitivity, domain/sports/taxonomy exclusions, event-family-purged sensitivity, friction assumptions, and optional full alternate snapshot-variant reruns.
 - `run_small_sample_pipeline.py`: deterministic small-sample end-to-end replication command path from cleaned interim data through inference, decomposition, and paper figures/tables; supports `--dry-run` for command-order verification.
 - `audit_final_artifacts.py`: Phase 11+ reporting-only audit of saved Phase 2-14 artifacts and data semantics, writing PASS/PARTIAL/FAIL checks under `data/artifacts/final_audit/` and `docs/audits/`.

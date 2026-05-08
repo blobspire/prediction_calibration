@@ -424,14 +424,24 @@ data/artifacts/robustness/
 paper/robustness/tables/
 ```
 
-These outputs compare saved-result snapshot-method slices, liquidity filters,
-domain-exclusion sensitivity, and alternative fee/spread/slippage/lockup
-assumptions. They are labeled non-confirmatory. Domain/category exclusions use
-the Phase 12 rule-based taxonomy where available and report `not_applicable`
-only if configured fields are unavailable or all unknown in the input artifact.
-Friction checks remain simulated EV screens because quote depth, historical
-executability, and order-book costs are not available in the current public
-data.
+These outputs compare saved-result snapshot-method slices, stale-price filters,
+liquidity filters, equal-contract versus equal-event-family versus explicitly
+trade-weighted scoring, domain/sports/taxonomy exclusions, event-family-purged
+sensitivity, full alternate snapshot variants, and alternative
+fee/spread/slippage/lockup assumptions. They are labeled non-confirmatory.
+Domain/category exclusions use the Phase 12 rule-based taxonomy where available
+and report `not_applicable` only if configured fields are unavailable or all
+unknown in the input artifact. Full alternate snapshot variants write under
+`data/artifacts/robustness/full_snapshot_variants/` and
+`data/processed/robustness/full_snapshot_variants/`; they do not overwrite the
+confirmatory panel or walk-forward outputs. Variant inference uses the
+diagnostic bootstrap count configured in `configs/robustness.yaml`, not the
+confirmatory Phase 13 bootstrap count, because these outputs are sensitivity
+checks. Friction checks remain simulated EV screens because quote depth,
+historical executability, and order-book costs are not available in the current
+public data. Threshold or snapshot-policy changes should be promoted to
+defaults only after these separated robustness artifacts show the current
+confirmatory defaults are materially fragile.
 
 Run the deterministic small-sample paper replication path:
 

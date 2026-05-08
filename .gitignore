@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.mpl-cache/
 .coverage
 htmlcov/
 .DS_Store
@@ -20,6 +21,9 @@ data/artifacts/*
 !data/interim/README.md
 !data/processed/README.md
 !data/artifacts/README.md
+
+# Local smoke-output directories
+paper/robustness*_smoke*/
 
 # Build artifacts
 build/

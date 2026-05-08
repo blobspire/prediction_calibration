@@ -40,12 +40,13 @@ Status labels:
 | Phase 6 recalibrators | complete | Common interface, raw/Platt/beta/isotonic/binned-reliability calibrators, experimental hierarchical-EB, model config, registry, bounded predictions, and synthetic tests. | `hierarchical_eb` remains experimental and not a full Bayesian mixed model. |
 | Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, expanded Phase 14 model set, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Full-scale audited edge interpretation remains later work. |
 | Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
-| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition artifacts under `paper/`. | Manuscript claims still need Phase 15-17 final gates. |
-| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions use rule-based taxonomy but remain exploratory. |
-| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 0 hard failures. | Phase 15-17 blockers remain: full robustness reruns, edge executability, and final run-registry/readiness hardening. |
+| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition artifacts under `paper/`. | Manuscript claims still need Phase 16-17 final gates. |
+| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Phase 15 expands robustness further; all robustness outputs remain sensitivity diagnostics. |
+| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 94 checks, 93 PASS, 1 PARTIAL, and 0 FAIL. | Phase 16-17 blockers remain: edge executability and final run-registry/readiness hardening. |
 | Phase 13 confirmatory inference | complete | Config-driven event-family clustered uncertainty reads saved walk-forward predictions, writes score intervals, paired deltas, calibration intervals, FDR adjustments, paired-loss diagnostics, and summary artifacts. | Domain/category claims remain conditional on taxonomy confidence and ambiguity. |
 | Phase 14 expanded calibration and decomposition | complete | Default walk-forward now includes `binned_reliability` and experimental `hierarchical_eb`; Murphy-style decomposition artifacts and manuscript table are generated from saved predictions. | `hierarchical_eb` is experimental; Murphy components are binned and retain `binning_residual`. |
-| Final deployment readiness | partial | Phase 0-14 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, clustered inference, expanded calibrators, decomposition, and tests passing. | Phases 15-17 in `ROADMAP.md` remain required before final publishable claims. |
+| Phase 15 full robustness reruns | complete | Full robustness now covers stale/liquidity filters, equal-event-family and trade-weighted sensitivity, sports/domain/taxonomy exclusions, event-family-purged sensitivity, friction scenarios, and three full alternate snapshot-variant downstream reruns. | Robustness outputs are diagnostic and non-confirmatory; default methodology should change only if separated robustness evidence justifies it. |
+| Final deployment readiness | partial | Phase 0-15 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, clustered inference, expanded calibrators, decomposition, and full robustness artifacts. | Phases 16-17 in `ROADMAP.md` remain required before final publishable claims. |
 
 ## Current Commands
 
@@ -232,9 +233,15 @@ Processed outputs:
 - `data/artifacts/robustness/summary.json`: full robustness run over 2,955,672 saved prediction rows.
 - `data/artifacts/robustness/snapshot_method_slices.parquet`
 - `data/artifacts/robustness/liquidity_filter_sensitivity.parquet`
+- `data/artifacts/robustness/staleness_filter_sensitivity.parquet`
+- `data/artifacts/robustness/weighting_sensitivity.parquet`
+- `data/artifacts/robustness/event_family_exclusion_sensitivity.parquet`
 - `data/artifacts/robustness/domain_exclusion_status.parquet`: records non-confirmatory domain/category exclusion sensitivity using Phase 12 taxonomy.
 - `data/artifacts/robustness/friction_assumption_sensitivity.parquet`
 - `data/artifacts/robustness/snapshot_variant_runs.parquet`: two small-sample snapshot variant summaries.
+- `data/artifacts/robustness/full_snapshot_variant_runs.parquet`
+- `data/artifacts/robustness/full_snapshot_variant_metrics.parquet`
+- `data/artifacts/robustness/full_snapshot_variants/*`: separated alternate snapshot-method downstream robustness artifacts.
 - `paper/robustness/tables/*.csv`
 - `paper/robustness/tables/*.md`
 - `data/processed/replication_small/contract_horizon_taxonomy_examples.parquet`
@@ -640,23 +647,26 @@ Cannot yet claim:
 
 - Domain-level calibration findings.
 - Executable trading profit or final tradable edge.
-- Event-family leakage safety under a final exclusion policy; current overlaps
-  are reported and uncertainty is clustered by event family.
-- Final manuscript claims from figures/tables until Phase 15-17 blockers are
+- Event-family leakage safety under a primary exclusion policy; current
+  confirmatory overlaps are reported, uncertainty is clustered by event family,
+  and Phase 15 adds event-family-purged sensitivity diagnostics.
+- Final manuscript claims from figures/tables until Phase 16-17 blockers are
   resolved or explicitly scoped out.
 
 Required next build steps:
 
 1. Manually review low-confidence, ambiguous, and unknown taxonomy slices before confirmatory domain claims.
-2. Expand robustness to full alternate snapshot-method reruns if the current
-   small-sample variants materially change conclusions.
+2. Treat Phase 15 robustness outputs as diagnostic sensitivity checks; do not
+   promote threshold or snapshot-policy changes without separated evidence that
+   the default is materially fragile.
 3. Upgrade edge executability only if quote/depth, observed NO-side prices, or
    documented fee-regime data become available.
 4. Add a final reproducibility/run-registry gate before any publishable claims.
 
 ## Current Phase Recommendation
 
-Next recommended task: start ROADMAP Phase 15 by expanding robustness beyond
-saved-artifact slices and small-sample snapshot variants.
+Next recommended task: start ROADMAP Phase 16 only if quote/depth, observed
+NO-side prices, or documented historical fee-regime data are available;
+otherwise proceed to Phase 17 reproducibility/readiness hardening.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.

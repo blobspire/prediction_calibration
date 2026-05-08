@@ -186,8 +186,9 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
             "refit models, or change methodology.",
             "A PARTIAL verdict can be acceptable for Phase 11 when hard invariants pass but "
             "known semantic limitations remain.",
-            "Final deployment still requires later roadmap phases for manual taxonomy review, "
-            "full robustness reruns, edge executability, and run-registry hardening.",
+            "Final deployment still requires later roadmap phases for edge executability and "
+            "run-registry hardening; taxonomy/domain claims remain conditional on confidence "
+            "and ambiguity review.",
         ],
     )
     paths["summary"].write_text(
@@ -565,9 +566,10 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
     event_policy = str(
         summary.get("effective_config", {}).get("evaluation", {}).get("event_family_policy", "")
     ).lower()
+    phase15_purge_available = _phase15_event_family_purge_available(config)
     event_policy_status = "FAIL"
     if "report" in event_policy:
-        event_policy_status = "PARTIAL"
+        event_policy_status = "PASS" if phase15_purge_available else "PARTIAL"
     elif any(token in event_policy for token in ("filter", "exclude", "strict")):
         event_policy_status = "PASS"
     predictions_path = config.walkforward_dir / "predictions.parquet"
@@ -696,12 +698,13 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "phase_7",
             "event_family_policy_report_only",
             event_policy_status,
-            "event-family overlaps are handled by a final audited policy",
-            "event-family overlaps are reported, not filtered; Phase 13 clusters "
-            "uncertainty by event family but does not exclude overlaps",
+            "event-family report-only primary policy has Phase 15 purged sensitivity",
+            "event-family overlaps are reported, not filtered, and Phase 15 purged "
+            "sensitivity is missing",
             {
                 "event_family_overlap_count": summary.get("event_family_overlap_count"),
                 "event_family_policy": event_policy,
+                "phase15_purged_sensitivity_available": phase15_purge_available,
             },
         ),
     ]
@@ -1107,7 +1110,20 @@ def _audit_robustness(config: FinalAuditConfig) -> list[dict[str, Any]]:
     summary = _read_json(config.robustness_dir / "summary.json")
     source_text = json.dumps(summary.get("source_artifacts", {})).lower()
     limitations = " ".join(str(item).lower() for item in summary.get("limitations", []))
-    return [
+    artifact_paths = summary.get("artifact_paths", {})
+    phase15_required = {
+        "staleness_filter_sensitivity",
+        "weighting_sensitivity",
+        "event_family_exclusion_sensitivity",
+        "full_snapshot_variant_runs",
+        "full_snapshot_variant_metrics",
+    }
+    missing_phase15 = sorted(
+        name
+        for name in phase15_required
+        if name not in artifact_paths or not Path(str(artifact_paths[name])).exists()
+    )
+    checks = [
         _check(
             "phase_10",
             "robustness_sources_not_smoke",
@@ -1124,7 +1140,107 @@ def _audit_robustness(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "robustness summary lacks diagnostic/non-confirmatory limitation language",
             {"limitations": summary.get("limitations", [])},
         ),
+        _check(
+            "phase_15",
+            "robustness_phase15_artifacts",
+            "PASS" if not missing_phase15 else "FAIL",
+            "Phase 15 robustness artifacts are present",
+            "Phase 15 robustness artifacts are missing",
+            {"missing_artifacts": missing_phase15},
+        ),
     ]
+    if not missing_phase15:
+        checks.extend(_audit_phase15_robustness_artifacts(artifact_paths))
+    return checks
+
+
+def _audit_phase15_robustness_artifacts(
+    artifact_paths: dict[str, Any],
+) -> list[dict[str, Any]]:
+    weighting = pd.read_parquet(Path(str(artifact_paths["weighting_sensitivity"])))
+    event_family = pd.read_parquet(
+        Path(str(artifact_paths["event_family_exclusion_sensitivity"]))
+    )
+    full_variants = pd.read_parquet(Path(str(artifact_paths["full_snapshot_variant_runs"])))
+    trade_weighted = weighting[
+        weighting.get("aggregation_mode", pd.Series(dtype=str)).astype(str) == "trade_weighted"
+    ]
+    trade_weighted_ok = (
+        not trade_weighted.empty
+        and "non_confirmatory" in trade_weighted.columns
+        and bool(trade_weighted["non_confirmatory"].fillna(False).all())
+        and "analysis_label" in trade_weighted.columns
+        and trade_weighted["analysis_label"].astype(str).str.contains("robustness").all()
+    )
+    purge_present = (
+        "policy_name" in event_family.columns
+        and "drop_overlapping_event_families"
+        in set(event_family["policy_name"].dropna().astype(str))
+    )
+    full_variant_smoke_paths = [
+        str(value)
+        for column in ("processed_dir", "artifact_dir")
+        if column in full_variants.columns
+        for value in full_variants[column].dropna().tolist()
+        if "smoke" in str(value).lower()
+    ]
+    full_variant_completed = (
+        "status" in full_variants.columns
+        and set(full_variants["status"].dropna().astype(str)) <= {"completed"}
+        and not full_variants.empty
+    )
+    return [
+        _check(
+            "phase_15",
+            "trade_weighted_robustness_labeled",
+            "PASS" if trade_weighted_ok else "FAIL",
+            "trade-weighted outputs are present and labeled non-confirmatory robustness",
+            "trade-weighted outputs are absent or not clearly labeled robustness-only",
+            {"trade_weighted_row_count": int(len(trade_weighted))},
+        ),
+        _check(
+            "phase_15",
+            "event_family_purged_sensitivity_present",
+            "PASS" if purge_present else "FAIL",
+            "event-family-purged sensitivity exists for report-only primary policy",
+            "event-family-purged sensitivity artifact is missing the purged policy",
+            {
+                "policies": sorted(
+                    set(event_family.get("policy_name", pd.Series(dtype=str)).dropna().astype(str))
+                )
+            },
+        ),
+        _check(
+            "phase_15",
+            "full_snapshot_variants_completed",
+            "PASS" if full_variant_completed and not full_variant_smoke_paths else "FAIL",
+            "full alternate snapshot variants completed outside smoke paths",
+            "full alternate snapshot variants are incomplete or point to smoke paths",
+            {
+                "status_counts": full_variants.get(
+                    "status",
+                    pd.Series(dtype=str),
+                )
+                .astype(str)
+                .value_counts()
+                .to_dict(),
+                "smoke_paths": full_variant_smoke_paths,
+            },
+        ),
+    ]
+
+
+def _phase15_event_family_purge_available(config: FinalAuditConfig) -> bool:
+    summary_path = config.robustness_dir / "summary.json"
+    if not summary_path.exists():
+        return False
+    summary = _read_json(summary_path)
+    artifact_paths = summary.get("artifact_paths", {})
+    path = artifact_paths.get("event_family_exclusion_sensitivity")
+    if not path or not Path(str(path)).exists():
+        return False
+    frame = pd.read_parquet(Path(str(path)), columns=["policy_name"])
+    return "drop_overlapping_event_families" in set(frame["policy_name"].dropna().astype(str))
 
 
 def _prediction_panel_key_mismatch_count(

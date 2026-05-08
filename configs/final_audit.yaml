@@ -51,6 +51,9 @@ audit:
       - unsupported_executable_profit_language
       - missing_phase14_decomposition_artifacts
       - hierarchical_model_not_labeled_experimental
+      - missing_phase15_robustness_artifacts
+      - unlabeled_trade_weighted_confirmatory_output
+      - missing_event_family_purged_sensitivity
     partial_allowed:
       - taxonomy_low_confidence_ambiguous_unknown_rows
       - event_family_regex_and_fallback_mix

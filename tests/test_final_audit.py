@@ -138,6 +138,39 @@ def test_final_audit_fails_when_hierarchical_not_marked_experimental(tmp_path: P
     assert hierarchical["status"] == "FAIL"
 
 
+def test_final_audit_fails_when_phase15_robustness_artifacts_missing(tmp_path: Path) -> None:
+    config = load_final_audit_config(_write_fixture(tmp_path, missing_phase15_robustness=True))
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    robustness = checks[checks["check_id"] == "robustness_phase15_artifacts"].iloc[0]
+    assert robustness["status"] == "FAIL"
+
+
+def test_final_audit_fails_when_trade_weighted_not_labeled(tmp_path: Path) -> None:
+    config = load_final_audit_config(_write_fixture(tmp_path, bad_trade_weight_label=True))
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    weighting = checks[checks["check_id"] == "trade_weighted_robustness_labeled"].iloc[0]
+    assert weighting["status"] == "FAIL"
+
+
+def test_final_audit_fails_when_event_family_purge_missing(tmp_path: Path) -> None:
+    config = load_final_audit_config(_write_fixture(tmp_path, missing_event_family_purge=True))
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    purge = checks[checks["check_id"] == "event_family_purged_sensitivity_present"].iloc[0]
+    assert purge["status"] == "FAIL"
+
+
 def _write_fixture(
     tmp_path: Path,
     *,
@@ -152,6 +185,9 @@ def _write_fixture(
     iid_inference: bool = False,
     expected_models: tuple[str, ...] = ("raw", "platt"),
     bad_hierarchical_label: bool = False,
+    missing_phase15_robustness: bool = False,
+    bad_trade_weight_label: bool = False,
+    missing_event_family_purge: bool = False,
 ) -> Path:
     raw_repo = tmp_path / "raw_repo"
     raw_repo.mkdir()
@@ -241,7 +277,12 @@ def _write_fixture(
     _write_inference(inference, iid_inference=iid_inference)
     _write_decomposition(decomposition, models=expected_models)
     _write_reporting(figures, tables)
-    _write_robustness(robustness)
+    _write_robustness(
+        robustness,
+        missing_phase15=missing_phase15_robustness,
+        bad_trade_weight_label=bad_trade_weight_label,
+        missing_event_family_purge=missing_event_family_purge,
+    )
 
     edge_side = '"YES"' if quote_edge_side else "YES"
     config_path = tmp_path / "final_audit.yaml"
@@ -689,7 +730,82 @@ def _write_decomposition(decomposition: Path, *, models: tuple[str, ...]) -> Non
     pd.DataFrame(bin_rows).to_parquet(decomposition / "murphy_bins.parquet", index=False)
 
 
-def _write_robustness(robustness: Path) -> None:
+def _write_robustness(
+    robustness: Path,
+    *,
+    missing_phase15: bool = False,
+    bad_trade_weight_label: bool = False,
+    missing_event_family_purge: bool = False,
+) -> None:
+    artifact_paths = {}
+    if not missing_phase15:
+        staleness = pd.DataFrame(
+            {
+                "filter_name": ["all_rows"],
+                "model_name": ["raw"],
+                "horizon_name": ["1d"],
+                "row_count": [1],
+                "non_confirmatory": [True],
+                "analysis_label": ["robustness_non_confirmatory"],
+            }
+        )
+        weighting = pd.DataFrame(
+            {
+                "model_name": ["raw", "raw"],
+                "horizon_name": ["1d", "1d"],
+                "aggregation_mode": ["equal_contract", "trade_weighted"],
+                "row_count": [1, 1],
+                "non_confirmatory": [True, not bad_trade_weight_label],
+                "analysis_label": [
+                    "robustness_non_confirmatory",
+                    "bad_label" if bad_trade_weight_label else "robustness_non_confirmatory",
+                ],
+            }
+        )
+        policies = ["report_only_all_test_rows"]
+        if not missing_event_family_purge:
+            policies.append("drop_overlapping_event_families")
+        event_family = pd.DataFrame(
+            {
+                "policy_name": policies,
+                "model_name": ["raw"] * len(policies),
+                "horizon_name": ["1d"] * len(policies),
+                "row_count": [1] * len(policies),
+                "non_confirmatory": [True] * len(policies),
+                "analysis_label": ["robustness_non_confirmatory"] * len(policies),
+            }
+        )
+        full_runs = pd.DataFrame(
+            {
+                "variant_name": ["last_trade_only"],
+                "status": ["completed"],
+                "processed_dir": [str(robustness / "full_snapshot_variants" / "last_trade_only")],
+                "artifact_dir": [str(robustness / "full_snapshot_variants" / "last_trade_only")],
+                "non_confirmatory": [True],
+                "analysis_label": ["robustness_non_confirmatory"],
+            }
+        )
+        full_metrics = pd.DataFrame(
+            {
+                "variant_name": ["last_trade_only"],
+                "model_name": ["raw"],
+                "metric_name": ["brier_score"],
+                "value": [0.1],
+                "non_confirmatory": [True],
+                "analysis_label": ["robustness_non_confirmatory"],
+            }
+        )
+        frames = {
+            "staleness_filter_sensitivity": staleness,
+            "weighting_sensitivity": weighting,
+            "event_family_exclusion_sensitivity": event_family,
+            "full_snapshot_variant_runs": full_runs,
+            "full_snapshot_variant_metrics": full_metrics,
+        }
+        for name, frame in frames.items():
+            path = robustness / f"{name}.parquet"
+            frame.to_parquet(path, index=False)
+            artifact_paths[name] = str(path)
     (robustness / "summary.json").write_text(
         json.dumps(
             {
@@ -697,6 +813,7 @@ def _write_robustness(robustness: Path) -> None:
                     "walkforward": "data/artifacts/walkforward",
                     "edge": "data/artifacts/edge_sim",
                 },
+                "artifact_paths": artifact_paths,
                 "limitations": ["diagnostic outputs only and not confirmatory"],
             }
         ),
