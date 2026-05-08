@@ -1,0 +1,8 @@
+| model_name | row_count | raw_brier | reliability | resolution | uncertainty | decomposed_brier | binning_residual | nonempty_bin_count | empty_bin_count | sparse_bin_count | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| raw | 409 | 0.1030 | 0.0059 | 0.1241 | 0.2211 | 0.1029 | 0.0001 | 10 | 0 | 5 | ok |
+| platt | 409 | 0.1023 | 0.0055 | 0.1236 | 0.2211 | 0.1030 | -0.0007 | 10 | 0 | 5 | ok |
+| beta | 409 | 0.1024 | 0.0059 | 0.1237 | 0.2211 | 0.1033 | -0.0009 | 10 | 0 | 5 | ok |
+| isotonic | 409 | 0.1023 | 0.0043 | 0.1240 | 0.2211 | 0.1015 | 0.0008 | 9 | 1 | 3 | ok |
+| binned_reliability | 409 | 0.1110 | 0.0112 | 0.1208 | 0.2211 | 0.1116 | -0.0006 | 8 | 2 | 3 | ok |
+| hierarchical_eb | 409 | 0.1096 | 0.0039 | 0.1141 | 0.2211 | 0.1110 | -0.0013 | 10 | 0 | 5 | ok |

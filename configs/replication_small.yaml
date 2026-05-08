@@ -15,7 +15,9 @@ configs:
   metrics: configs/metrics.yaml
   validation: configs/validation.yaml
   models: configs/models.yaml
+  inference: configs/inference.yaml
   backtest: configs/backtest.yaml
+  decomposition: configs/decomposition.yaml
   reporting: configs/reporting.yaml
 
 limits:

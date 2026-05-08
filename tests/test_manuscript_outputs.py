@@ -17,6 +17,7 @@ def test_reporting_config_loads(tmp_path: Path) -> None:
     assert config.walkforward_artifact_dir == tmp_path / "walkforward"
     assert config.edge_artifact_dir == tmp_path / "edge"
     assert config.inference_artifact_dir == tmp_path / "inference"
+    assert config.decomposition_artifact_dir == tmp_path / "decomposition"
     assert config.figure_dir == tmp_path / "figures"
     assert config.table_dir == tmp_path / "tables"
     assert config.artifact_run_label == "full"
@@ -57,6 +58,7 @@ def test_make_manuscript_tables_writes_outputs(tmp_path: Path) -> None:
         "horizon_score_comparison",
         "calibration_intercept_slope",
         "edge_friction_sensitivity",
+        "murphy_decomposition",
         "artifact_source_limitations",
     }
     assert (tmp_path / "tables" / "table_manifest.json").exists()
@@ -75,6 +77,10 @@ def test_make_manuscript_tables_writes_outputs(tmp_path: Path) -> None:
     calibration = pd.read_csv(tmp_path / "tables" / "calibration_intercept_slope.csv")
     assert "calibration_slope_ci_lower" in calibration.columns
     assert "calibration_slope_p_value" in calibration.columns
+    decomposition = pd.read_csv(tmp_path / "tables" / "murphy_decomposition.csv")
+    assert {"reliability", "resolution", "uncertainty", "binning_residual"} <= set(
+        decomposition.columns
+    )
 
 
 def test_manuscript_scripts_support_overrides(tmp_path: Path) -> None:
@@ -159,6 +165,7 @@ inputs:
   walkforward_artifact_dir: {tmp_path / "walkforward"}
   edge_artifact_dir: {tmp_path / "edge"}
   inference_artifact_dir: {tmp_path / "inference"}
+  decomposition_artifact_dir: {tmp_path / "decomposition"}
 outputs:
   figure_dir: {tmp_path / "figures"}
   table_dir: {tmp_path / "tables"}
@@ -184,10 +191,12 @@ def _write_artifacts(tmp_path: Path) -> None:
     walk_dir = tmp_path / "walkforward"
     edge_dir = tmp_path / "edge"
     inference_dir = tmp_path / "inference"
+    decomposition_dir = tmp_path / "decomposition"
     raw_dir.mkdir()
     walk_dir.mkdir()
     edge_dir.mkdir()
     inference_dir.mkdir()
+    decomposition_dir.mkdir()
     (raw_dir / "summary.json").write_text(
         json.dumps({"limitations": ["raw limitation"]}),
         encoding="utf-8",
@@ -210,6 +219,7 @@ def _write_artifacts(tmp_path: Path) -> None:
         index=False,
     )
     _write_inference(inference_dir)
+    _write_decomposition(decomposition_dir)
 
 
 def _aggregate_metrics() -> pd.DataFrame:
@@ -391,6 +401,59 @@ def _write_inference(inference_dir: Path) -> None:
         inference_dir / "multiple_comparison_adjustments.parquet",
         index=False,
     )
+
+
+def _write_decomposition(decomposition_dir: Path) -> None:
+    (decomposition_dir / "summary.json").write_text(
+        json.dumps(
+            {
+                "limitations": [
+                    "Murphy decomposition uses bins and reports binning residuals"
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    rows = []
+    bin_rows = []
+    for model_name in ("raw", "platt"):
+        rows.append(
+            {
+                "model_name": model_name,
+                "grouping_name": "overall",
+                "group_key": "overall",
+                "row_count": 20,
+                "raw_brier": 0.12 if model_name == "raw" else 0.10,
+                "reliability": 0.02,
+                "resolution": 0.04,
+                "uncertainty": 0.24,
+                "decomposed_brier": 0.22,
+                "binning_residual": -0.10 if model_name == "raw" else -0.12,
+                "nonempty_bin_count": 5,
+                "empty_bin_count": 0,
+                "sparse_bin_count": 0,
+                "status": "ok",
+            }
+        )
+        for index in range(5):
+            bin_rows.append(
+                {
+                    "model_name": model_name,
+                    "grouping_name": "overall",
+                    "group_key": "overall",
+                    "bin_index": index,
+                    "row_count": 4,
+                    "mean_probability": 0.1 + index * 0.2,
+                    "observed_frequency": 0.08 + index * 0.2,
+                    "is_empty": False,
+                    "is_sparse": False,
+                }
+            )
+    pd.DataFrame(rows).to_parquet(
+        decomposition_dir / "murphy_decomposition.parquet",
+        index=False,
+    )
+    pd.DataFrame(bin_rows).to_parquet(decomposition_dir / "murphy_bins.parquet", index=False)
 
 
 def _score_intervals() -> pd.DataFrame:

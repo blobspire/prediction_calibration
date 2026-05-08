@@ -1,0 +1,20 @@
+inputs:
+  predictions_path: data/artifacts/walkforward/predictions.parquet
+
+outputs:
+  artifact_dir: data/artifacts/decomposition
+
+columns:
+  probability_column: predicted_probability
+  outcome_column: observed_outcome
+  model_column: model_name
+
+decomposition:
+  bin_count: 10
+  min_bin_count: 30
+  min_rows: 50
+  groupings:
+    - name: overall
+      columns: []
+    - name: horizon
+      columns: [horizon_name]

@@ -1,8 +1,9 @@
 {
   "effective_config": {
     "config_path": "configs/reporting.yaml",
-    "config_sha256": "531d3161d6a34b19947ea14895e82c690d9d24a647cc01151ef50a8327467430",
+    "config_sha256": "cc174a02f59d23fb07f7ff0893abaa30578adad3fb3d28e68311e9d9defa7fb9",
     "inputs": {
+      "decomposition_artifact_dir": "data/artifacts/decomposition",
       "edge_artifact_dir": "data/artifacts/edge_sim",
       "inference_artifact_dir": "data/artifacts/inference",
       "raw_baseline_artifact_dir": "data/artifacts/raw_baseline",
@@ -37,7 +38,9 @@
         "raw",
         "platt",
         "beta",
-        "isotonic"
+        "isotonic",
+        "binned_reliability",
+        "hierarchical_eb"
       ],
       "reliability_bin_count": 10,
       "reliability_min_bin_count": 30,
@@ -53,9 +56,13 @@
     "Domain/category manuscript outputs remain exploratory because taxonomy coverage includes lower-confidence title rules plus ambiguous and unknown rows.",
     "Edge outputs are simulated expected-value screens, not executable trading profits.",
     "Score intervals and p-values use event-family clustered inference artifacts.",
+    "Murphy decomposition uses binned saved predictions and reports the binning residual.",
     "Artifact run label is full."
   ],
   "source_artifacts": {
+    "decomposition_murphy_bins": "data/artifacts/decomposition/murphy_bins.parquet",
+    "decomposition_murphy_decomposition": "data/artifacts/decomposition/murphy_decomposition.parquet",
+    "decomposition_summary": "data/artifacts/decomposition/summary.json",
     "edge_summary": "data/artifacts/edge_sim/summary.json",
     "edge_summary_by_model_tier": "data/artifacts/edge_sim/edge_summary_by_model_tier.parquet",
     "edge_summary_by_tier": "data/artifacts/edge_sim/edge_summary_by_tier.parquet",
@@ -92,6 +99,11 @@
       "paper/tables/horizon_score_comparison.csv",
       "paper/tables/horizon_score_comparison.md",
       "paper/tables/horizon_score_comparison.tex"
+    ],
+    "murphy_decomposition": [
+      "paper/tables/murphy_decomposition.csv",
+      "paper/tables/murphy_decomposition.md",
+      "paper/tables/murphy_decomposition.tex"
     ],
     "overall_score_comparison": [
       "paper/tables/overall_score_comparison.csv",

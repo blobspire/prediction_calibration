@@ -36,15 +36,16 @@ Status labels:
 | Phase 12 taxonomy layer | complete | Ordered exact-event, event-family regex, prefix, title-keyword, and default-unknown rules produce audited domain/category/sports/event-family fields with confidence and ambiguity flags. | Domain/category claims still require confidence/ambiguity filters and manual review for low-confidence or unknown rows. |
 | Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, Phase 12 taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Liquidity is public trade proxy only; momentum/volatility use transaction prices. |
 | Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs are taxonomy-rule based and exploratory until uncertainty/manual review supports claims. |
-| Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Event-family overlaps are reported, not filtered; clustered handling remains Phase 13. |
-| Phase 6 recalibrators | complete | Common fit/predict interface, raw/Platt/beta/isotonic calibrators, model config, registry, bounded predictions, and synthetic tests. | Full walk-forward model evaluation is Phase 7. |
-| Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Clustered inference, hierarchical models, and full-scale audited edge interpretation remain later work. |
+| Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Event-family overlaps are reported, not filtered. |
+| Phase 6 recalibrators | complete | Common interface, raw/Platt/beta/isotonic/binned-reliability calibrators, experimental hierarchical-EB, model config, registry, bounded predictions, and synthetic tests. | `hierarchical_eb` remains experimental and not a full Bayesian mixed model. |
+| Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, expanded Phase 14 model set, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Full-scale audited edge interpretation remains later work. |
 | Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
-| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge artifacts under `paper/`. | Manuscript claims still need clustered uncertainty and Phase 13-17 final gates. |
+| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition artifacts under `paper/`. | Manuscript claims still need Phase 15-17 final gates. |
 | Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Robustness outputs remain sensitivity diagnostics; domain exclusions use rule-based taxonomy but remain exploratory. |
-| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 0 hard failures. | Phase 13-17 blockers remain: clustered uncertainty, expanded models/robustness, and edge executability. |
-| Phase 13 confirmatory inference | complete | Config-driven event-family clustered uncertainty reads saved walk-forward predictions, writes score intervals, paired deltas, calibration intervals, FDR adjustments, paired-loss diagnostics, and summary artifacts. | Domain/category claims remain conditional on taxonomy confidence and ambiguity; hierarchical models and Murphy decomposition remain later work. |
-| Final deployment readiness | partial | Phase 0-13 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, clustered inference, and tests passing. | Phases 14-17 in `ROADMAP.md` remain required before final publishable claims. |
+| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 0 hard failures. | Phase 15-17 blockers remain: full robustness reruns, edge executability, and final run-registry/readiness hardening. |
+| Phase 13 confirmatory inference | complete | Config-driven event-family clustered uncertainty reads saved walk-forward predictions, writes score intervals, paired deltas, calibration intervals, FDR adjustments, paired-loss diagnostics, and summary artifacts. | Domain/category claims remain conditional on taxonomy confidence and ambiguity. |
+| Phase 14 expanded calibration and decomposition | complete | Default walk-forward now includes `binned_reliability` and experimental `hierarchical_eb`; Murphy-style decomposition artifacts and manuscript table are generated from saved predictions. | `hierarchical_eb` is experimental; Murphy components are binned and retain `binning_residual`. |
+| Final deployment readiness | partial | Phase 0-14 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, clustered inference, expanded calibrators, decomposition, and tests passing. | Phases 15-17 in `ROADMAP.md` remain required before final publishable claims. |
 
 ## Current Commands
 
@@ -77,6 +78,7 @@ uv run python scripts/build_walkforward_splits.py --config configs/validation.ya
 uv run python scripts/fit_walkforward.py --config configs/models.yaml
 uv run python scripts/run_inference.py --config configs/inference.yaml
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
+uv run python scripts/evaluate_decomposition.py --config configs/decomposition.yaml
 uv run python scripts/make_figures.py --config configs/reporting.yaml
 uv run python scripts/make_tables.py --config configs/reporting.yaml
 uv run python scripts/run_robustness.py --config configs/robustness.yaml
@@ -99,13 +101,13 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `106 passed`.
-`uv run ruff check .` also passes. Targeted `mypy` checks pass for
-`src/predmkt/inference`, `src/predmkt/reports/manuscript.py`, and
-`src/predmkt/reports/final_audit.py`. Full walk-forward, inference,
-edge-simulation, manuscript, robustness, small-sample replication, and
-final-audit artifacts exist under their configured output roots after the
-Phase 13 run.
+Latest local verification used `uv run pytest` and passed `115 passed`.
+`uv run ruff check .` also passes. The Phase 14 requested `mypy` target passes
+for `src/predmkt/calibration`, `src/predmkt/metrics`,
+`src/predmkt/validation/walkforward.py`, and `src/predmkt/reports`. Full walk-forward, inference,
+edge-simulation, Murphy decomposition, manuscript, robustness, small-sample
+replication, and final-audit artifacts exist under their configured output roots
+after the Phase 14 run.
 
 ## Config Registry
 
@@ -118,14 +120,15 @@ Phase 13 run.
 | `configs/figures.yaml` | partial | Raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI. |
 | `configs/raw_baseline_audit.yaml` | partial | Diagnostics for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics. |
 | `configs/presentation.yaml` | partial | Slide-ready raw-baseline figure inputs, presentation output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values. |
-| `configs/models.yaml` | complete | Recalibrator input columns, enabled raw/Platt/beta/isotonic model names, prediction clipping epsilon, fit controls, metric settings, fit-label policy, and walk-forward artifact directory. |
+| `configs/models.yaml` | complete | Recalibrator input/context columns, enabled raw/Platt/beta/isotonic/binned-reliability/experimental hierarchical-EB model names, prediction clipping epsilon, fit controls, metric settings, fit-label policy, and walk-forward artifact directory. |
 | `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
 | `configs/backtest.yaml` | complete | Conservative YES-side edge-screen inputs, fee proxy, spread/slippage haircuts, capital-lockup charge, optional liquidity/staleness filters, and artifact directory. |
 | `configs/inference.yaml` | complete | Phase 13 saved-artifact inference inputs, event-family bootstrap unit, iteration count, confidence level, FDR alpha, sparse-group thresholds, groupings, and bucket definitions. |
-| `configs/reporting.yaml` | complete | Manuscript figure/table input artifact dirs including inference, `paper/` output dirs, model/horizon order, figure/table formats, metric scope, and explicit full-vs-smoke run label. |
+| `configs/decomposition.yaml` | complete | Phase 14 saved-prediction Murphy-style decomposition inputs, output directory, fixed-width bin settings, sparse-bin threshold, and grouping definitions. |
+| `configs/reporting.yaml` | complete | Manuscript figure/table input artifact dirs including inference and decomposition, `paper/` output dirs, model/horizon order, figure/table formats, metric scope, and explicit full-vs-smoke run label. |
 | `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, taxonomy-rule domain exclusions, friction scenarios, and small snapshot variants. |
-| `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs, limits, run label, and separate processed/artifact/paper output roots. |
-| `configs/final_audit.yaml` | complete | Phase 11+ saved-artifact and data-semantics audit inputs, Phase 13 inference checks, expected horizons/models, full-run labels, hard-fail/partial severity rules, known partial limitations, and audit output paths. |
+| `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs including inference/decomposition, limits, run label, and separate processed/artifact/paper output roots. |
+| `configs/final_audit.yaml` | complete | Phase 11+ saved-artifact and data-semantics audit inputs, Phase 13 inference checks, Phase 14 decomposition/experimental-label checks, expected horizons/models, full-run labels, hard-fail/partial severity rules, known partial limitations, and audit output paths. |
 
 ## Local Data Artifacts
 
@@ -194,25 +197,28 @@ Processed outputs:
 - `data/artifacts/walkforward_smoke/calibrator_fits.parquet`
 - `data/artifacts/walkforward_smoke/event_family_leakage.parquet`
 - `data/artifacts/walkforward_smoke/summary.json`
-- `data/artifacts/walkforward/predictions.parquet`: full 22-fold walk-forward output with 1,970,448 model prediction rows.
-- `data/artifacts/walkforward/fold_metrics.parquet`: 880 fold-level metric rows.
-- `data/artifacts/walkforward/aggregate_metrics.parquet`: 80 pooled and fold-macro metric rows.
+- `data/artifacts/walkforward/predictions.parquet`: full 22-fold walk-forward output with 2,955,672 model prediction rows from six models.
+- `data/artifacts/walkforward/fold_metrics.parquet`: 1,320 fold-level metric rows.
+- `data/artifacts/walkforward/aggregate_metrics.parquet`: 120 pooled and fold-macro metric rows.
 - `data/artifacts/walkforward/calibrator_fits.parquet`
 - `data/artifacts/walkforward/event_family_leakage.parquet`: 318 reported fit/test event-family overlaps.
 - `data/artifacts/walkforward/summary.json`
-- `data/artifacts/inference/score_intervals.parquet`: 516 score interval rows.
-- `data/artifacts/inference/paired_score_differences.parquet`: 387 paired model-vs-raw rows with p-values/q-values.
-- `data/artifacts/inference/calibration_intervals.parquet`: 80 calibration coefficient interval rows.
-- `data/artifacts/inference/multiple_comparison_adjustments.parquet`: 387 Benjamini-Hochberg adjustment rows.
-- `data/artifacts/inference/paired_loss_diagnostics.parquet`: 258 event-family paired-loss diagnostic rows.
-- `data/artifacts/inference/bootstrap_replicates.parquet`: 962,000 replicate rows from 1,000 event-family bootstrap iterations.
+- `data/artifacts/inference/score_intervals.parquet`: 774 score interval rows.
+- `data/artifacts/inference/paired_score_differences.parquet`: 645 paired model-vs-raw rows with p-values/q-values.
+- `data/artifacts/inference/calibration_intervals.parquet`: 120 calibration coefficient interval rows.
+- `data/artifacts/inference/multiple_comparison_adjustments.parquet`: 645 Benjamini-Hochberg adjustment rows.
+- `data/artifacts/inference/paired_loss_diagnostics.parquet`: 430 event-family paired-loss diagnostic rows.
+- `data/artifacts/inference/bootstrap_replicates.parquet`: 1,506,000 replicate rows from 1,000 event-family bootstrap iterations.
 - `data/artifacts/inference/summary.json`: 70,876 event-family clusters.
+- `data/artifacts/decomposition/murphy_decomposition.parquet`: 60 Murphy component rows.
+- `data/artifacts/decomposition/murphy_bins.parquet`: 600 Murphy bin rows.
+- `data/artifacts/decomposition/summary.json`
 - `data/artifacts/edge_sim_smoke/edge_candidates.parquet`: one-fold smoke edge-screen output, not confirmatory.
 - `data/artifacts/edge_sim_smoke/edge_summary_by_tier.parquet`
 - `data/artifacts/edge_sim_smoke/edge_summary_by_model_tier.parquet`
 - `data/artifacts/edge_sim_smoke/excluded_rows.parquet`
 - `data/artifacts/edge_sim_smoke/summary.json`
-- `data/artifacts/edge_sim/edge_candidates.parquet`: full edge-screen output with 5,911,344 candidate rows.
+- `data/artifacts/edge_sim/edge_candidates.parquet`: full edge-screen output with 8,867,016 candidate rows.
 - `data/artifacts/edge_sim/edge_summary_by_tier.parquet`
 - `data/artifacts/edge_sim/edge_summary_by_model_tier.parquet`
 - `data/artifacts/edge_sim/excluded_rows.parquet`
@@ -223,7 +229,7 @@ Processed outputs:
 - `paper/tables/*.csv`
 - `paper/tables/*.md`
 - `paper/tables/*.tex`
-- `data/artifacts/robustness/summary.json`: full robustness run over 1,970,448 saved prediction rows.
+- `data/artifacts/robustness/summary.json`: full robustness run over 2,955,672 saved prediction rows.
 - `data/artifacts/robustness/snapshot_method_slices.parquet`
 - `data/artifacts/robustness/liquidity_filter_sensitivity.parquet`
 - `data/artifacts/robustness/domain_exclusion_status.parquet`: records non-confirmatory domain/category exclusion sensitivity using Phase 12 taxonomy.
@@ -233,16 +239,18 @@ Processed outputs:
 - `paper/robustness/tables/*.md`
 - `data/processed/replication_small/contract_horizon_taxonomy_examples.parquet`
 - `data/processed/replication_small/modeling_panel.parquet`: deterministic small-sample replication panel with 8,882 rows.
-- `data/artifacts/replication/small_sample/replication_manifest.json`: all 9 stages completed.
-- `data/artifacts/replication/small_sample/walkforward/predictions.parquet`: 1,636 small-sample walk-forward predictions over 2 evaluated folds.
-- `data/artifacts/replication/small_sample/edge_sim/edge_candidates.parquet`: 4,908 small-sample simulated edge candidate rows.
+- `data/artifacts/replication/small_sample/replication_manifest.json`: all 11 stages completed.
+- `data/artifacts/replication/small_sample/walkforward/predictions.parquet`: 2,454 small-sample walk-forward predictions over 2 evaluated folds.
+- `data/artifacts/replication/small_sample/inference/summary.json`
+- `data/artifacts/replication/small_sample/decomposition/summary.json`
+- `data/artifacts/replication/small_sample/edge_sim/edge_candidates.parquet`: 7,362 small-sample simulated edge candidate rows.
 - `paper/replication/small_sample/figures/figure_manifest.json`
 - `paper/replication/small_sample/figures/manuscript_*.{png,svg,pdf}`
 - `paper/replication/small_sample/tables/table_manifest.json`
 - `paper/replication/small_sample/tables/*.{csv,md,tex}`
 - `data/artifacts/final_audit/artifact_inventory.parquet`
 - `data/artifacts/final_audit/audit_checks.parquet`: current full audit has
-  76 checks, 73 PASS, 3 PARTIAL, and 0 FAIL.
+  87 checks, 84 PASS, 3 PARTIAL, and 0 FAIL.
 - `data/artifacts/final_audit/phase_status.parquet`
 - `data/artifacts/final_audit/summary.json`: current overall status is
   `PARTIAL`.
@@ -358,7 +366,8 @@ Limitations:
 
 ### `src/predmkt/metrics/`
 
-Status: complete for Phase 4 raw baseline evaluation.
+Status: complete for Phase 4 raw baseline evaluation and Phase 14
+decomposition.
 
 Capabilities:
 
@@ -370,10 +379,17 @@ Capabilities:
 - Uses equal-contract aggregation as the confirmatory default and records aggregation mode in outputs.
 - Writes equal-event-family diagnostics using the Phase 12 event-family field.
 - Allows trade-weighted robustness only when explicitly enabled in metrics config.
+- Computes Murphy-style reliability/resolution/uncertainty decomposition from
+  saved walk-forward predictions.
+- Reports `raw_brier`, `decomposed_brier`, and `binning_residual` because
+  fixed-width bins can contain varied probabilities.
 
 Limitations:
 
-- Phase 4 evaluates raw probabilities only; recalibrators and walk-forward model evaluation are not implemented here.
+- Phase 4 raw baseline evaluation scores raw probabilities only; walk-forward
+  recalibrators are evaluated by `src/predmkt/validation/`.
+- Murphy decomposition is binned and should not be described as an exact
+  identity when the residual is nonzero.
 - Domain/category grouped outputs are taxonomy-rule based and remain exploratory without confidence/ambiguity filters and clustered uncertainty.
 - Liquidity/staleness groups use public feature-panel proxies, not executable quote or order-book data.
 
@@ -407,8 +423,8 @@ Limitations:
   outputs.
 - The near-close audit is diagnostic only and does not select a revised snapshot
   method or stale-price rule.
-- Manuscript figures/tables require full walk-forward, edge, and inference
-  artifacts by default.
+- Manuscript figures/tables require full walk-forward, edge, inference, and
+  decomposition artifacts by default.
 - Domain/category manuscript plots remain exploratory because taxonomy coverage includes lower-confidence title, ambiguous, and unknown rows.
 
 ### `src/predmkt/inference/`
@@ -480,7 +496,7 @@ Limitations:
 
 ### `src/predmkt/validation/`
 
-Status: complete for Phase 5 split construction and Phase 7 simple walk-forward
+Status: complete for Phase 5 split construction and Phase 7/14 walk-forward
 model evaluation.
 
 Capabilities:
@@ -493,8 +509,8 @@ Capabilities:
 - Validates no row appears in multiple splits within the same fold.
 - Detects strict event-family overlap across train/validation/test splits.
 - Falls back from `event_family_id` to `event_id` when operating on raw snapshot panels.
-- Evaluates configured raw/Platt/beta/isotonic calibrators on identical future
-  test rows.
+- Evaluates configured raw/Platt/beta/isotonic/binned-reliability/hierarchical-EB
+  calibrators on identical future test rows.
 - Fits models only on train+validation rows whose `resolution_ts` is at or
   before each fold's test start.
 - Writes prediction, fold metric, aggregate metric, calibrator fit,
@@ -504,25 +520,29 @@ Capabilities:
 Limitations:
 
 - Strict event-family overlaps are reported, not automatically filtered.
-- Event-family identifiers are still conservative taxonomy proxies until family mapping coverage improves.
-- Hierarchical calibrators remain Phase 14 work.
+- Event-family identifiers are still conservative taxonomy proxies where regex
+  grouping is unavailable.
+- `hierarchical_eb` is experimental and reportable only with that label.
 
 ### `src/predmkt/calibration/`
 
-Status: complete for Phase 6 reusable simple recalibrators.
+Status: complete for Phase 6 reusable simple recalibrators and Phase 14
+expanded baselines.
 
 Capabilities:
 
 - Provides a common `fit(probabilities, outcomes)` and
-  `predict_proba(probabilities)` interface.
+  `predict_proba(probabilities)` interface, plus optional context-aware methods.
 - Provides `RawCalibrator`, `PlattCalibrator`, `BetaCalibrator`, and
   `IsotonicCalibrator`.
+- Provides `BinnedReliabilityCalibrator` and experimental
+  `HierarchicalEBCalibrator`.
 - Clips every returned prediction to the configured epsilon, currently
   `0.000001` in `configs/models.yaml`.
 - Uses dependency-free logistic IRLS for Platt and beta calibration.
 - Uses dependency-free pool-adjacent-violators for isotonic calibration.
-- Provides a registry with names `raw`, `platt`, `logistic`, `beta`, and
-  `isotonic`.
+- Provides a registry with names `raw`, `platt`, `logistic`, `beta`,
+  `isotonic`, `binned_reliability`, and `hierarchical_eb`.
 - Loads enabled calibrators from `configs/models.yaml`.
 - Falls back to clipped raw probabilities on degenerate Platt/beta folds with
   explicit statuses.
@@ -533,8 +553,9 @@ Limitations:
 
 - These are model components; walk-forward prediction and raw-vs-recalibrated
   score artifacts are written by `src/predmkt/validation/`.
-- No hierarchical or partially pooled calibrator exists.
-- Hyperparameter selection over folds remains Phase 7.
+- `hierarchical_eb` is an empirical-Bayes additive approximation, not a full
+  Bayesian mixed model.
+- Hyperparameter selection over folds is not automated.
 
 ### `src/predmkt/edge/`
 
@@ -618,24 +639,21 @@ Cannot yet claim:
 - Executable trading profit or final tradable edge.
 - Event-family leakage safety under a final exclusion policy; current overlaps
   are reported and uncertainty is clustered by event family.
-- Final manuscript claims from figures/tables until Phase 14-17 blockers are
+- Final manuscript claims from figures/tables until Phase 15-17 blockers are
   resolved or explicitly scoped out.
 
 Required next build steps:
 
 1. Manually review low-confidence, ambiguous, and unknown taxonomy slices before confirmatory domain claims.
-2. Add Murphy decomposition and expanded calibration methods, including bin-based
-   correction and hierarchical/partially pooled models when taxonomy supports
-   them.
-3. Expand robustness to full alternate snapshot-method reruns if the current
+2. Expand robustness to full alternate snapshot-method reruns if the current
    small-sample variants materially change conclusions.
-4. Upgrade edge executability only if quote/depth, observed NO-side prices, or
+3. Upgrade edge executability only if quote/depth, observed NO-side prices, or
    documented fee-regime data become available.
-5. Add a final reproducibility/run-registry gate before any publishable claims.
+4. Add a final reproducibility/run-registry gate before any publishable claims.
 
 ## Current Phase Recommendation
 
-Next recommended task: start ROADMAP Phase 14 by adding Murphy decomposition,
-bin-based correction, and expanded calibration methods.
+Next recommended task: start ROADMAP Phase 15 by expanding robustness beyond
+saved-artifact slices and small-sample snapshot variants.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.

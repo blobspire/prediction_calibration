@@ -29,6 +29,7 @@ def main() -> int:
     parser.add_argument("--edge-dir", type=Path, default=None)
     parser.add_argument("--raw-baseline-dir", type=Path, default=None)
     parser.add_argument("--inference-dir", type=Path, default=None)
+    parser.add_argument("--decomposition-dir", type=Path, default=None)
     parser.add_argument("--table-dir", type=Path, default=None)
     parser.add_argument(
         "--artifact-run-label",
@@ -45,6 +46,9 @@ def main() -> int:
         walkforward_artifact_dir=args.walkforward_dir or config.walkforward_artifact_dir,
         edge_artifact_dir=args.edge_dir or config.edge_artifact_dir,
         inference_artifact_dir=args.inference_dir or config.inference_artifact_dir,
+        decomposition_artifact_dir=(
+            args.decomposition_dir or config.decomposition_artifact_dir
+        ),
         table_dir=args.table_dir or config.table_dir,
         artifact_run_label=args.artifact_run_label or config.artifact_run_label,
     )

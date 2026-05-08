@@ -2,6 +2,8 @@
 
 from predmkt.calibration.base import BaseCalibrator, CalibratorConfig
 from predmkt.calibration.beta import BetaCalibrator
+from predmkt.calibration.binned import BinnedReliabilityCalibrator
+from predmkt.calibration.hierarchical import HierarchicalEBCalibrator
 from predmkt.calibration.isotonic import IsotonicCalibrator
 from predmkt.calibration.logistic import PlattCalibrator
 from predmkt.calibration.raw import RawCalibrator
@@ -16,7 +18,9 @@ from predmkt.calibration.registry import (
 __all__ = [
     "BaseCalibrator",
     "BetaCalibrator",
+    "BinnedReliabilityCalibrator",
     "CalibratorConfig",
+    "HierarchicalEBCalibrator",
     "IsotonicCalibrator",
     "ModelsConfig",
     "PlattCalibrator",

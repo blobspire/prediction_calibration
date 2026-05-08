@@ -8,3 +8,4 @@ Current key docs:
 - `data_sources/becker_kalshi_schema.md`: Becker/Kalshi schema, cleaning, snapshot, taxonomy, and feature notes.
 - `audits/final_data_semantics.md`: Phase 11 saved-artifact and data-semantics audit report.
 - `inference/clustered_uncertainty.md`: Phase 13 event-family clustered inference methodology, sparse-group handling, FDR scope, and limitations.
+- `calibration/phase14_methods.md`: Phase 14 binned reliability correction, experimental empirical-Bayes additive recalibrator, and Murphy decomposition methodology.

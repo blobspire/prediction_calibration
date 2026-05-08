@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 
 from predmkt.calibration import ModelsConfig, make_calibrator
 from predmkt.metrics.calibration import fit_calibration_intercept_slope
@@ -89,11 +89,18 @@ def evaluate_walkforward(config: ModelsConfig) -> WalkForwardEvaluationSummary:
 
         for model_name in config.enabled_calibrators:
             calibrator = make_calibrator(model_name, config.calibrator_config)
-            calibrator.fit(
+            context_columns = calibrator.requires_context
+            fit_context = _context_from_frame(fit_frame, context_columns)
+            test_context = _context_from_frame(test_frame, context_columns)
+            calibrator.fit_with_context(
                 fit_frame[config.probability_column].tolist(),
                 fit_frame[config.outcome_column].tolist(),
+                fit_context,
             )
-            predictions = calibrator.predict_proba(test_frame[config.probability_column].tolist())
+            predictions = calibrator.predict_proba_with_context(
+                test_frame[config.probability_column].tolist(),
+                test_context,
+            )
             fit_rows.append(
                 {
                     "fold_id": fold_id,
@@ -104,6 +111,8 @@ def evaluate_walkforward(config: ModelsConfig) -> WalkForwardEvaluationSummary:
                     "label_cutoff_ts": test_start_ts,
                     "fit_status": calibrator.status,
                     "calibrator_row_count": calibrator.row_count,
+                    "is_experimental": bool(calibrator.is_experimental),
+                    "context_columns_json": json.dumps(list(context_columns), sort_keys=True),
                     "parameters_json": json.dumps(calibrator.parameters, sort_keys=True),
                 }
             )
@@ -168,8 +177,10 @@ def evaluate_walkforward(config: ModelsConfig) -> WalkForwardEvaluationSummary:
         artifact_paths={key: str(value) for key, value in artifact_paths.items()},
         effective_config=_effective_config(config),
         limitations=[
-            "Phase 7 evaluates simple raw/Platt/beta/isotonic calibrators only; no "
-            "hierarchical models are implemented.",
+            "Phase 14 includes simple raw/Platt/beta/isotonic, binned reliability, and "
+            "experimental empirical-Bayes additive recalibrators.",
+            "hierarchical_eb is experimental: it uses horizon/domain additive logit "
+            "offsets, not a full Bayesian mixed model.",
             "Fit data uses train+validation rows with labels resolved by each test "
             "fold start; rows with later resolutions are excluded from fitting.",
             "Event-family overlaps are reported but not filtered; Phase 12 family IDs are "
@@ -202,6 +213,7 @@ def _load_panel(config: ModelsConfig) -> pd.DataFrame:
         config.resolution_column,
         config.probability_column,
         config.outcome_column,
+        *_required_context_columns(config),
     }
     missing = sorted(required - set(panel.columns))
     if missing:
@@ -460,13 +472,39 @@ def _effective_config(config: ModelsConfig) -> dict[str, Any]:
             "horizon_column": config.horizon_column,
             "event_family_column": config.event_family_column,
         },
-        "calibrators": {"enabled": list(config.enabled_calibrators)},
+        "calibrators": {
+            "enabled": list(config.enabled_calibrators),
+            "experimental": {
+                name: make_calibrator(name, config.calibrator_config).is_experimental
+                for name in config.enabled_calibrators
+            },
+        },
         "prediction": {"epsilon": config.calibrator_config.epsilon},
         "fit": {
             "min_rows": config.calibrator_config.min_rows,
             "max_iterations": config.calibrator_config.max_iterations,
             "tolerance": config.calibrator_config.tolerance,
             "ridge": config.calibrator_config.ridge,
+            "reliability_bin_count": config.calibrator_config.reliability_bin_count,
+            "reliability_min_bin_count": (
+                config.calibrator_config.reliability_min_bin_count
+            ),
+            "reliability_prior_strength": (
+                config.calibrator_config.reliability_prior_strength
+            ),
+            "reliability_monotone": config.calibrator_config.reliability_monotone,
+            "hierarchical_group_columns": list(
+                config.calibrator_config.hierarchical_group_columns
+            ),
+            "hierarchical_min_group_rows": (
+                config.calibrator_config.hierarchical_min_group_rows
+            ),
+            "hierarchical_prior_strength": (
+                config.calibrator_config.hierarchical_prior_strength
+            ),
+            "hierarchical_backfit_iterations": (
+                config.calibrator_config.hierarchical_backfit_iterations
+            ),
         },
         "evaluation": {
             "fit_splits": list(config.fit_splits),
@@ -526,3 +564,22 @@ def _validate_config(config: ModelsConfig) -> None:
         raise WalkForwardEvaluationError("reliability_bin_count must be positive")
     if config.reliability_min_bin_count < 0:
         raise WalkForwardEvaluationError("reliability_min_bin_count cannot be negative")
+
+
+def _required_context_columns(config: ModelsConfig) -> set[str]:
+    columns: set[str] = set()
+    for model_name in config.enabled_calibrators:
+        columns.update(make_calibrator(model_name, config.calibrator_config).requires_context)
+    return columns
+
+
+def _context_from_frame(
+    frame: pd.DataFrame,
+    columns: tuple[str, ...],
+) -> dict[str, list[object]] | None:
+    if not columns:
+        return None
+    missing = sorted(set(columns) - set(frame.columns))
+    if missing:
+        raise WalkForwardEvaluationError(f"context columns missing from panel: {missing}")
+    return {column: frame[column].tolist() for column in columns}

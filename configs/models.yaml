@@ -18,6 +18,10 @@ calibrators:
     - platt
     - beta
     - isotonic
+    - binned_reliability
+    - hierarchical_eb
+  experimental:
+    hierarchical_eb: true
 
 prediction:
   epsilon: 0.000001
@@ -27,6 +31,16 @@ fit:
   max_iterations: 100
   tolerance: 0.00000001
   ridge: 0.000000001
+  reliability_bin_count: 10
+  reliability_min_bin_count: 30
+  reliability_prior_strength: 20.0
+  reliability_monotone: true
+  hierarchical_group_columns:
+    - horizon_name
+    - domain
+  hierarchical_min_group_rows: 50
+  hierarchical_prior_strength: 100.0
+  hierarchical_backfit_iterations: 3
 
 evaluation:
   fit_splits:

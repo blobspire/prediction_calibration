@@ -3,6 +3,7 @@ inputs:
   walkforward_artifact_dir: data/artifacts/walkforward
   edge_artifact_dir: data/artifacts/edge_sim
   inference_artifact_dir: data/artifacts/inference
+  decomposition_artifact_dir: data/artifacts/decomposition
 
 outputs:
   figure_dir: paper/figures
@@ -11,7 +12,7 @@ outputs:
 reporting:
   artifact_run_label: full
   horizon_order: [30d, 14d, 7d, 3d, 1d, 6h, 1h, 15m, close]
-  model_order: [raw, platt, beta, isotonic]
+  model_order: [raw, platt, beta, isotonic, binned_reliability, hierarchical_eb]
   metric_scope: pooled_equal_contract
   aggregation_mode: equal_contract
   reliability_bin_count: 10

@@ -15,8 +15,10 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-import pandas as pd
-import yaml
+import pandas as pd  # type: ignore[import-untyped]
+import yaml  # type: ignore[import-untyped]
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from predmkt.metrics.calibration import fit_calibration_intercept_slope
 from predmkt.metrics.scoring import clip_probability
@@ -751,7 +753,7 @@ def _ece(probabilities: pd.Series, outcomes: pd.Series, *, bin_count: int) -> fl
 def _plot_staleness_percentiles(
     staleness: pd.DataFrame,
     config: RawBaselineAuditConfig,
-) -> plt.Figure:
+) -> Figure:
     rows = staleness[staleness["snapshot_method"] == "all"].copy()
     rows = _order_horizon_frame(rows, config)
     fig, ax = plt.subplots(figsize=(9.5, 5.2), constrained_layout=True)
@@ -776,7 +778,7 @@ def _plot_staleness_percentiles(
     return fig
 
 
-def _plot_method_mix(counts: pd.DataFrame, config: RawBaselineAuditConfig) -> plt.Figure:
+def _plot_method_mix(counts: pd.DataFrame, config: RawBaselineAuditConfig) -> Figure:
     pivot = counts.pivot(index="horizon_name", columns="snapshot_method", values="share_of_horizon")
     pivot = pivot.reindex(config.horizons).fillna(0.0)
     fig, ax = plt.subplots(figsize=(9.5, 5.2), constrained_layout=True)
@@ -792,7 +794,7 @@ def _plot_method_mix(counts: pd.DataFrame, config: RawBaselineAuditConfig) -> pl
     return fig
 
 
-def _plot_method_metrics(metrics: pd.DataFrame, config: RawBaselineAuditConfig) -> plt.Figure:
+def _plot_method_metrics(metrics: pd.DataFrame, config: RawBaselineAuditConfig) -> Figure:
     fig, axes = plt.subplots(3, 1, figsize=(10.0, 8.5), sharex=True, constrained_layout=True)
     for ax, column in zip(axes, METRIC_COLUMNS, strict=True):
         pivot = metrics.pivot(index="horizon_name", columns="snapshot_method", values=column)
@@ -807,7 +809,7 @@ def _plot_method_metrics(metrics: pd.DataFrame, config: RawBaselineAuditConfig) 
     return fig
 
 
-def _plot_strict_variants(metrics: pd.DataFrame) -> plt.Figure:
+def _plot_strict_variants(metrics: pd.DataFrame) -> Figure:
     rows = metrics[
         (metrics["variant_family"] == "vwap_preferred")
         & (metrics["selected_snapshot_method"] == "all")
@@ -828,7 +830,7 @@ def _plot_strict_variants(metrics: pd.DataFrame) -> plt.Figure:
 def _plot_balanced_comparison(
     metrics: pd.DataFrame,
     config: RawBaselineAuditConfig,
-) -> plt.Figure:
+) -> Figure:
     fig, axes = plt.subplots(3, 1, figsize=(9.8, 8.2), sharex=True, constrained_layout=True)
     for ax, column in zip(axes, METRIC_COLUMNS, strict=True):
         pivot = metrics.pivot(index="horizon_name", columns="panel_type", values=column)
@@ -843,7 +845,7 @@ def _plot_balanced_comparison(
     return fig
 
 
-def _plot_close_semantics(close_semantics: pd.DataFrame) -> plt.Figure:
+def _plot_close_semantics(close_semantics: pd.DataFrame) -> Figure:
     fig, ax = plt.subplots(figsize=(8.4, 4.8), constrained_layout=True)
     if not close_semantics.empty:
         values = close_semantics.set_index("snapshot_method")[
@@ -862,7 +864,7 @@ def _plot_close_semantics(close_semantics: pd.DataFrame) -> plt.Figure:
     return fig
 
 
-def _heatmap(ax: plt.Axes, pivot: pd.DataFrame, *, title: str) -> None:
+def _heatmap(ax: Axes, pivot: pd.DataFrame, *, title: str) -> None:
     if pivot.empty:
         ax.set_title(title)
         ax.text(0.5, 0.5, "No rows", transform=ax.transAxes, ha="center", va="center")
@@ -938,7 +940,7 @@ def _artifact_paths(audit_dir: Path) -> dict[str, Path]:
 
 
 def _save_figure(
-    fig: plt.Figure,
+    fig: Figure,
     figures_dir: Path,
     config: RawBaselineAuditConfig,
     stem: str,

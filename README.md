@@ -249,11 +249,14 @@ config = load_models_config("configs/models.yaml")
 calibrators = make_configured_calibrators(config)
 ```
 
-`configs/models.yaml` enables `raw`, `platt`, `beta`, and `isotonic`
-calibrators by default. Each exposes `fit(probabilities, outcomes)` and
-`predict_proba(probabilities)`, and every prediction is clipped to the configured
-epsilon, currently `0.000001`. These are reusable Phase 6 model components only:
-they can be used directly by the walk-forward evaluator below.
+`configs/models.yaml` enables `raw`, `platt`, `beta`, `isotonic`,
+`binned_reliability`, and `hierarchical_eb` by default. Context-free models
+expose `fit(probabilities, outcomes)` and `predict_proba(probabilities)`;
+context-aware models also expose `fit_with_context(...)` and
+`predict_proba_with_context(...)`. Every prediction is clipped to the configured
+epsilon, currently `0.000001`. The `hierarchical_eb` model is explicitly
+experimental: it is an empirical-Bayes additive logit approximation over
+`horizon_name` and `domain`, not a full Bayesian mixed model.
 
 Run walk-forward raw versus recalibrated evaluation:
 
@@ -305,6 +308,25 @@ Manuscript score tables merge these artifacts to include confidence intervals,
 paired effect sizes, bootstrap p-values, Benjamini-Hochberg q-values, and
 effective event-family cluster counts. Domain/category inference remains
 conditional on taxonomy confidence and ambiguity.
+
+Evaluate Murphy-style Brier decomposition from saved out-of-sample predictions:
+
+```bash
+uv run python scripts/evaluate_decomposition.py --config configs/decomposition.yaml
+```
+
+The decomposition script reads `data/artifacts/walkforward/predictions.parquet`
+only; it does not refit calibrators or rebuild data. It writes:
+
+```text
+data/artifacts/decomposition/murphy_decomposition.parquet
+data/artifacts/decomposition/murphy_bins.parquet
+data/artifacts/decomposition/summary.json
+```
+
+The Murphy components use fixed-width probability bins. Because probabilities
+vary within bins, the script reports `binning_residual = raw_brier -
+decomposed_brier` instead of claiming an exact identity.
 
 For a quick smoke run on the first fold:
 
@@ -372,6 +394,7 @@ data/artifacts/raw_baseline/
 data/artifacts/walkforward/
 data/artifacts/edge_sim/
 data/artifacts/inference/
+data/artifacts/decomposition/
 ```
 
 and writes to:
@@ -382,10 +405,10 @@ paper/tables/
 ```
 
 These scripts do not fit models, recompute core metrics, or rerun edge screens.
-They fail clearly if the full walk-forward, edge, or inference artifacts are
-missing. For a deliberate draft run from smoke artifacts, pass
+They fail clearly if the full walk-forward, edge, inference, or decomposition
+artifacts are missing. For a deliberate draft run from smoke artifacts, pass
 `--artifact-run-label smoke` plus artifact-dir overrides including
-`--inference-dir`.
+`--inference-dir` and `--decomposition-dir`.
 
 Run non-confirmatory robustness diagnostics from saved full-run artifacts:
 
@@ -424,8 +447,8 @@ uv run python scripts/run_small_sample_pipeline.py --config configs/replication_
 
 The small-sample path starts from cleaned interim Kalshi tables, not
 `data/raw/`, and runs snapshot, taxonomy, feature, raw-baseline, split,
-walk-forward, edge, figure, and table stages with deterministic limits. It
-writes separately from primary outputs:
+walk-forward, inference, edge, decomposition, figure, and table stages with
+deterministic limits. It writes separately from primary outputs:
 
 ```text
 data/processed/replication_small/
@@ -433,7 +456,7 @@ data/artifacts/replication/small_sample/
 paper/replication/small_sample/
 ```
 
-Audit the saved Phase 2-10 artifact chain and final data semantics:
+Audit the saved Phase 2-14 artifact chain and final data semantics:
 
 ```bash
 uv run python scripts/audit_final_artifacts.py --config configs/final_audit.yaml
@@ -450,10 +473,11 @@ data/artifacts/final_audit/summary.json
 docs/audits/final_data_semantics.md
 ```
 
-The current expected verdict is `PARTIAL`: hard invariants pass, but
-`resolution_ts` / `close_time` semantics, placeholder taxonomy, event-family
-proxying, simulated edge outputs, missing quote depth, and missing clustered
-uncertainty remain final-deployment blockers tracked in `ROADMAP.md`.
+The current expected verdict remains `PARTIAL`: hard invariants can pass, but
+`resolution_ts` / `close_time` semantics, taxonomy ambiguity, report-only
+event-family overlaps, simulated edge outputs, missing quote depth, and
+hierarchical-model experimental status remain final-deployment limitations
+tracked in `ROADMAP.md`.
 
 Use the tests to verify the package imports and schema utilities:
 

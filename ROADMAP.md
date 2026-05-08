@@ -317,6 +317,10 @@ Attach uncertainty estimates to all raw-vs-recalibrated claims.
 
 ## Phase 14 — Expanded calibration methods and decompositions
 
+Status: implemented as of 2026-05-07. Remaining caveat: `hierarchical_eb`
+is experimental and domain-level claims remain conditional on taxonomy
+confidence and ambiguity review.
+
 ### Goal
 Complete the recalibration method ladder described in `PROJECT_BRIEF.md`.
 

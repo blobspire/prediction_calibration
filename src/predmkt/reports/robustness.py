@@ -770,10 +770,16 @@ def _required_list(raw: dict[str, Any], key: str) -> list[dict[str, Any]]:
 def _optional_float(value: object) -> float | None:
     if value is None:
         return None
-    return float(value)
+    if isinstance(value, (int, float, str)):
+        return float(value)
+    raise ValueError(f"expected optional float-compatible value, got {type(value).__name__}")
 
 
 def _optional_int(value: object) -> int | None:
     if value is None:
         return None
-    return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value)
+    raise ValueError(f"expected optional int-compatible value, got {type(value).__name__}")

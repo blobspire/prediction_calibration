@@ -121,6 +121,23 @@ def test_final_audit_fails_on_iid_inference_bootstrap(tmp_path: Path) -> None:
     assert inference["status"] == "FAIL"
 
 
+def test_final_audit_fails_when_hierarchical_not_marked_experimental(tmp_path: Path) -> None:
+    config = load_final_audit_config(
+        _write_fixture(
+            tmp_path,
+            expected_models=("raw", "platt", "hierarchical_eb"),
+            bad_hierarchical_label=True,
+        )
+    )
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    hierarchical = checks[checks["check_id"] == "hierarchical_eb_experimental_label"].iloc[0]
+    assert hierarchical["status"] == "FAIL"
+
+
 def _write_fixture(
     tmp_path: Path,
     *,
@@ -133,6 +150,8 @@ def _write_fixture(
     quote_edge_side: bool = True,
     missing_phase12_taxonomy: bool = False,
     iid_inference: bool = False,
+    expected_models: tuple[str, ...] = ("raw", "platt"),
+    bad_hierarchical_label: bool = False,
 ) -> Path:
     raw_repo = tmp_path / "raw_repo"
     raw_repo.mkdir()
@@ -144,6 +163,7 @@ def _write_fixture(
     walkforward = tmp_path / "walkforward"
     edge = tmp_path / "edge"
     inference = tmp_path / "inference"
+    decomposition = tmp_path / "decomposition"
     robustness = tmp_path / "robustness"
     figures = tmp_path / "figures"
     tables = tmp_path / "tables"
@@ -154,6 +174,7 @@ def _write_fixture(
         walkforward,
         edge,
         inference,
+        decomposition,
         robustness,
         figures,
         tables,
@@ -210,9 +231,15 @@ def _write_fixture(
     )
     _write_splits(processed, bad_split_order=bad_split_order)
     _write_raw_baseline(raw_baseline)
-    _write_walkforward(walkforward, bad_prediction_key=bad_prediction_key)
+    _write_walkforward(
+        walkforward,
+        bad_prediction_key=bad_prediction_key,
+        models=expected_models,
+        bad_hierarchical_label=bad_hierarchical_label,
+    )
     _write_edge(edge, bad_edge_side=bad_edge_side)
     _write_inference(inference, iid_inference=iid_inference)
+    _write_decomposition(decomposition, models=expected_models)
     _write_reporting(figures, tables)
     _write_robustness(robustness)
 
@@ -240,6 +267,7 @@ inputs:
   walkforward_dir: {walkforward}
   edge_dir: {edge}
   inference_dir: {inference}
+  decomposition_dir: {decomposition}
   robustness_dir: {robustness}
   figure_manifest_path: {figures / "figure_manifest.json"}
   table_manifest_path: {tables / "table_manifest.json"}
@@ -248,7 +276,7 @@ outputs:
   semantics_doc_path: {tmp_path / "docs" / "final_data_semantics.md"}
 audit:
   expected_horizons: [1d]
-  expected_models: [raw, platt]
+  expected_models: [{", ".join(expected_models)}]
   expected_edge_trade_side: {edge_side}
   expected_reporting_run_label: full
   known_partial_limitations:
@@ -401,9 +429,15 @@ def _write_raw_baseline(raw_baseline: Path) -> None:
     )
 
 
-def _write_walkforward(walkforward: Path, *, bad_prediction_key: bool) -> None:
+def _write_walkforward(
+    walkforward: Path,
+    *,
+    bad_prediction_key: bool,
+    models: tuple[str, ...],
+    bad_hierarchical_label: bool,
+) -> None:
     predictions = []
-    for model in ("raw", "platt"):
+    for model in models:
         predictions.append(
             {
                 "fold_id": "fold_2024_01",
@@ -422,9 +456,15 @@ def _write_walkforward(walkforward: Path, *, bad_prediction_key: bool) -> None:
     pd.DataFrame(predictions).to_parquet(walkforward / "predictions.parquet", index=False)
     pd.DataFrame(
         {
-            "fold_id": ["fold_2024_01", "fold_2024_01"],
-            "model_name": ["raw", "platt"],
-            "fit_row_count": [1, 1],
+            "fold_id": ["fold_2024_01"] * len(models),
+            "model_name": list(models),
+            "fit_row_count": [1] * len(models),
+            "is_experimental": [
+                False
+                if model != "hierarchical_eb" or bad_hierarchical_label
+                else True
+                for model in models
+            ],
         }
     ).to_parquet(walkforward / "calibrator_fits.parquet", index=False)
     (walkforward / "summary.json").write_text(
@@ -543,11 +583,13 @@ def _write_reporting(figures: Path, tables: Path) -> None:
             "walkforward": "data/artifacts/walkforward",
             "edge": "data/artifacts/edge_sim",
             "inference": "data/artifacts/inference",
+            "decomposition": "data/artifacts/decomposition",
         },
         "limitations": [
             "simulated edge screens",
             "taxonomy coverage remains limited",
             "clustered inference intervals included",
+            "Murphy decomposition includes binning residuals",
         ],
     }
     (figures / "figure_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -573,6 +615,69 @@ def _write_reporting(figures: Path, tables: Path) -> None:
             "effective_cluster_count": [2.0],
         }
     ).to_csv(tables / "calibration_intercept_slope.csv", index=False)
+    pd.DataFrame(
+        {
+            "model_name": ["raw", "platt"],
+            "row_count": [1, 1],
+            "raw_brier": [0.12, 0.10],
+            "reliability": [0.02, 0.01],
+            "resolution": [0.03, 0.03],
+            "uncertainty": [0.25, 0.25],
+            "decomposed_brier": [0.24, 0.23],
+            "binning_residual": [-0.12, -0.13],
+        }
+    ).to_csv(tables / "murphy_decomposition.csv", index=False)
+
+
+def _write_decomposition(decomposition: Path, *, models: tuple[str, ...]) -> None:
+    (decomposition / "summary.json").write_text(
+        json.dumps(
+            {
+                "limitations": [
+                    "Murphy decomposition uses fixed-width bins and reports binning residuals"
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    decomposition_rows = []
+    bin_rows = []
+    for index, model in enumerate(models):
+        reliability = 0.01 + index * 0.001
+        resolution = 0.03 + index * 0.001
+        uncertainty = 0.25
+        decomposed = reliability - resolution + uncertainty
+        decomposition_rows.append(
+            {
+                "model_name": model,
+                "grouping_name": "overall",
+                "group_key": "overall",
+                "row_count": 1,
+                "reliability": reliability,
+                "resolution": resolution,
+                "uncertainty": uncertainty,
+                "decomposed_brier": decomposed,
+                "raw_brier": 0.12,
+                "binning_residual": 0.12 - decomposed,
+            }
+        )
+        bin_rows.append(
+            {
+                "model_name": model,
+                "grouping_name": "overall",
+                "bin_index": 0,
+                "row_count": 1,
+                "mean_probability": 0.7,
+                "observed_frequency": 1.0,
+                "is_empty": False,
+                "is_sparse": False,
+            }
+        )
+    pd.DataFrame(decomposition_rows).to_parquet(
+        decomposition / "murphy_decomposition.parquet",
+        index=False,
+    )
+    pd.DataFrame(bin_rows).to_parquet(decomposition / "murphy_bins.parquet", index=False)
 
 
 def _write_robustness(robustness: Path) -> None:

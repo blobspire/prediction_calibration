@@ -18,6 +18,7 @@ inputs:
   walkforward_dir: data/artifacts/walkforward
   edge_dir: data/artifacts/edge_sim
   inference_dir: data/artifacts/inference
+  decomposition_dir: data/artifacts/decomposition
   robustness_dir: data/artifacts/robustness
   figure_manifest_path: paper/figures/figure_manifest.json
   table_manifest_path: paper/tables/table_manifest.json
@@ -28,7 +29,7 @@ outputs:
 
 audit:
   expected_horizons: [30d, 14d, 7d, 3d, 1d, 6h, 1h, 15m, close]
-  expected_models: [raw, platt, beta, isotonic]
+  expected_models: [raw, platt, beta, isotonic, binned_reliability, hierarchical_eb]
   expected_edge_trade_side: "YES"
   expected_reporting_run_label: full
   known_partial_limitations:
@@ -38,6 +39,8 @@ audit:
     - edge_outputs_simulated_not_executable
     - quote_depth_unavailable
     - clustered_uncertainty_uses_event_family_proxy_where_regex_unavailable
+    - hierarchical_eb_is_experimental
+    - murphy_decomposition_binning_residual
   severity_rules:
     hard_fail:
       - missing_required_artifact
@@ -47,6 +50,8 @@ audit:
       - prediction_panel_key_mismatch
       - iid_or_row_bootstrap_in_confirmatory_inference
       - unsupported_executable_profit_language
+      - missing_phase14_decomposition_artifacts
+      - hierarchical_model_not_labeled_experimental
     partial_allowed:
       - resolution_ts_close_time_not_separately_retained
       - taxonomy_low_confidence_ambiguous_unknown_rows

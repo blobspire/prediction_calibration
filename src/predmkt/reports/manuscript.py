@@ -12,7 +12,14 @@ import pandas as pd  # type: ignore[import-untyped]
 import yaml  # type: ignore[import-untyped]
 
 DEFAULT_HORIZON_ORDER = ("30d", "14d", "7d", "3d", "1d", "6h", "1h", "15m", "close")
-DEFAULT_MODEL_ORDER = ("raw", "platt", "beta", "isotonic")
+DEFAULT_MODEL_ORDER = (
+    "raw",
+    "platt",
+    "beta",
+    "isotonic",
+    "binned_reliability",
+    "hierarchical_eb",
+)
 DEFAULT_FIGURE_FORMATS = ("png", "svg", "pdf")
 DEFAULT_TABLE_FORMATS = ("csv", "markdown", "latex")
 
@@ -25,6 +32,7 @@ class ReportingConfig:
     walkforward_artifact_dir: Path
     edge_artifact_dir: Path
     inference_artifact_dir: Path
+    decomposition_artifact_dir: Path
     figure_dir: Path
     table_dir: Path
     artifact_run_label: str
@@ -71,6 +79,7 @@ def load_reporting_config(path: Path) -> ReportingConfig:
         walkforward_artifact_dir=Path(_required(inputs, "walkforward_artifact_dir")),
         edge_artifact_dir=Path(_required(inputs, "edge_artifact_dir")),
         inference_artifact_dir=Path(_required(inputs, "inference_artifact_dir")),
+        decomposition_artifact_dir=Path(_required(inputs, "decomposition_artifact_dir")),
         figure_dir=Path(_required(outputs, "figure_dir")),
         table_dir=Path(_required(outputs, "table_dir")),
         artifact_run_label=str(_required(reporting, "artifact_run_label")),
@@ -109,6 +118,8 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
     score_intervals = pd.read_parquet(sources["inference_score_intervals"])
     paired_differences = pd.read_parquet(sources["inference_paired_score_differences"])
     calibration_intervals = pd.read_parquet(sources["inference_calibration_intervals"])
+    decomposition = pd.read_parquet(sources["decomposition_murphy_decomposition"])
+    decomposition_summary = _read_json(sources["decomposition_summary"])
 
     tables = {
         "overall_score_comparison": _overall_score_table(
@@ -129,11 +140,13 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
             config,
         ),
         "edge_friction_sensitivity": _edge_table(edge_summary, config),
+        "murphy_decomposition": _murphy_table(decomposition, config),
         "artifact_source_limitations": _limitations_table(
             raw_summary,
             walkforward_summary,
             edge_run_summary,
             inference_summary,
+            decomposition_summary,
             config,
         ),
     }
@@ -185,6 +198,11 @@ def reporting_source_paths(config: ReportingConfig) -> dict[str, Path]:
         "inference_multiple_comparison_adjustments": (
             config.inference_artifact_dir / "multiple_comparison_adjustments.parquet"
         ),
+        "decomposition_summary": config.decomposition_artifact_dir / "summary.json",
+        "decomposition_murphy_decomposition": (
+            config.decomposition_artifact_dir / "murphy_decomposition.parquet"
+        ),
+        "decomposition_murphy_bins": config.decomposition_artifact_dir / "murphy_bins.parquet",
     }
 
 
@@ -197,6 +215,7 @@ def effective_reporting_config(config: ReportingConfig) -> dict[str, Any]:
             "walkforward_artifact_dir": str(config.walkforward_artifact_dir),
             "edge_artifact_dir": str(config.edge_artifact_dir),
             "inference_artifact_dir": str(config.inference_artifact_dir),
+            "decomposition_artifact_dir": str(config.decomposition_artifact_dir),
         },
         "outputs": {
             "figure_dir": str(config.figure_dir),
@@ -238,6 +257,7 @@ def validate_required_artifacts(config: ReportingConfig) -> dict[str, Path]:
                 config.walkforward_artifact_dir,
                 config.edge_artifact_dir,
                 config.inference_artifact_dir,
+                config.decomposition_artifact_dir,
             )
             if "smoke" in str(path)
         ]
@@ -400,11 +420,35 @@ def _edge_table(edge_summary: pd.DataFrame, config: ReportingConfig) -> pd.DataF
     return rows[[column for column in columns if column in rows.columns]].copy()
 
 
+def _murphy_table(decomposition: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+    rows = decomposition[
+        (decomposition["grouping_name"] == "overall")
+        & (decomposition["model_name"].isin(config.model_order))
+    ].copy()
+    rows = _ordered_models(rows, config)
+    columns = [
+        "model_name",
+        "row_count",
+        "raw_brier",
+        "reliability",
+        "resolution",
+        "uncertainty",
+        "decomposed_brier",
+        "binning_residual",
+        "nonempty_bin_count",
+        "empty_bin_count",
+        "sparse_bin_count",
+        "status",
+    ]
+    return rows[[column for column in columns if column in rows.columns]].copy()
+
+
 def _limitations_table(
     raw_summary: dict[str, Any],
     walkforward_summary: dict[str, Any],
     edge_summary: dict[str, Any],
     inference_summary: dict[str, Any],
+    decomposition_summary: dict[str, Any],
     config: ReportingConfig,
 ) -> pd.DataFrame:
     rows: list[dict[str, str]] = [
@@ -425,6 +469,7 @@ def _limitations_table(
         ("walkforward", walkforward_summary),
         ("edge_simulation", edge_summary),
         ("inference", inference_summary),
+        ("decomposition", decomposition_summary),
     ):
         for limitation in summary.get("limitations", []):
             rows.append({"source": source, "limitation": str(limitation)})
@@ -742,6 +787,7 @@ def _common_limitations(config: ReportingConfig) -> list[str]:
         "includes lower-confidence title rules plus ambiguous and unknown rows.",
         "Edge outputs are simulated expected-value screens, not executable trading profits.",
         "Score intervals and p-values use event-family clustered inference artifacts.",
+        "Murphy decomposition uses binned saved predictions and reports the binning residual.",
         f"Artifact run label is {config.artifact_run_label}.",
     ]
 

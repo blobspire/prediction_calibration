@@ -39,6 +39,7 @@ class FinalAuditConfig:
     walkforward_dir: Path
     edge_dir: Path
     inference_dir: Path
+    decomposition_dir: Path
     robustness_dir: Path
     figure_manifest_path: Path
     table_manifest_path: Path
@@ -109,6 +110,7 @@ def load_final_audit_config(path: Path) -> FinalAuditConfig:
         walkforward_dir=Path(_required(inputs, "walkforward_dir")),
         edge_dir=Path(_required(inputs, "edge_dir")),
         inference_dir=Path(_required(inputs, "inference_dir")),
+        decomposition_dir=Path(_required(inputs, "decomposition_dir")),
         robustness_dir=Path(_required(inputs, "robustness_dir")),
         figure_manifest_path=Path(_required(inputs, "figure_manifest_path")),
         table_manifest_path=Path(_required(inputs, "table_manifest_path")),
@@ -147,6 +149,7 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
         checks.extend(_audit_splits(config))
         checks.extend(_audit_walkforward(config))
         checks.extend(_audit_inference(config))
+        checks.extend(_audit_decomposition(config))
         checks.extend(_audit_raw_baseline(config))
         checks.extend(_audit_edge(config))
         checks.extend(_audit_reporting(config))
@@ -184,8 +187,7 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
             "A PARTIAL verdict can be acceptable for Phase 11 when hard invariants pass but "
             "known semantic limitations remain.",
             "Final deployment still requires later roadmap phases for manual taxonomy review, "
-            "expanded calibration methods, full robustness reruns, edge executability, and "
-            "run-registry hardening.",
+            "full robustness reruns, edge executability, and run-registry hardening.",
         ],
     )
     paths["summary"].write_text(
@@ -576,6 +578,18 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
     bad_outcome = int((~predictions["observed_outcome"].isin([0, 1])).sum())
     key_mismatches = _prediction_panel_key_mismatch_count(predictions, config)
     fit_mismatches = _fit_row_mismatch_count(config)
+    fits = pd.read_parquet(config.walkforward_dir / "calibrator_fits.parquet")
+    hierarchical_fits = fits[fits["model_name"].astype(str) == "hierarchical_eb"].copy()
+    requires_hierarchical = "hierarchical_eb" in expected_models
+    experimental_label_valid = (
+        not requires_hierarchical
+        or (
+            not hierarchical_fits.empty
+            and "is_experimental" in hierarchical_fits.columns
+            and bool(hierarchical_fits["is_experimental"].all())
+        )
+    )
+    missing_expected_fits = sorted(expected_models - set(fits["model_name"].astype(str).unique()))
     return [
         _check(
             "phase_7",
@@ -624,6 +638,25 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "calibrator fit row counts match train+validation labels resolved by test start",
             "calibrator fit row counts do not match the resolved-by-test-start policy",
             {"mismatch_count": fit_mismatches},
+        ),
+        _check(
+            "phase_14",
+            "walkforward_phase14_fit_metadata",
+            "PASS" if not missing_expected_fits else "FAIL",
+            "calibrator fit metadata includes all expected Phase 14 models",
+            "calibrator fit metadata is missing expected model rows",
+            {"missing_models": missing_expected_fits},
+        ),
+        _check(
+            "phase_14",
+            "hierarchical_eb_experimental_label",
+            "PASS" if experimental_label_valid else "FAIL",
+            "hierarchical_eb fit artifacts are labeled experimental",
+            "hierarchical_eb fit artifacts are missing required experimental labeling",
+            {
+                "hierarchical_fit_rows": int(len(hierarchical_fits)),
+                "has_is_experimental_column": "is_experimental" in fits.columns,
+            },
         ),
         _check(
             "phase_7",
@@ -761,6 +794,95 @@ def _audit_inference(config: FinalAuditConfig) -> list[dict[str, Any]]:
     ]
 
 
+def _audit_decomposition(config: FinalAuditConfig) -> list[dict[str, Any]]:
+    summary = _read_json(config.decomposition_dir / "summary.json")
+    decomposition = pd.read_parquet(config.decomposition_dir / "murphy_decomposition.parquet")
+    bins = pd.read_parquet(config.decomposition_dir / "murphy_bins.parquet")
+    expected_models = set(config.expected_models)
+    observed_models = set(decomposition["model_name"].astype(str).unique())
+    required_decomposition = {
+        "model_name",
+        "grouping_name",
+        "row_count",
+        "reliability",
+        "resolution",
+        "uncertainty",
+        "decomposed_brier",
+        "raw_brier",
+        "binning_residual",
+    }
+    required_bins = {
+        "model_name",
+        "grouping_name",
+        "bin_index",
+        "row_count",
+        "mean_probability",
+        "observed_frequency",
+        "is_empty",
+        "is_sparse",
+    }
+    decomposition_missing = sorted(required_decomposition - set(decomposition.columns))
+    bins_missing = sorted(required_bins - set(bins.columns))
+    if decomposition_missing:
+        identity_max = float("inf")
+    else:
+        identity_error = (
+            decomposition["decomposed_brier"].astype(float)
+            - (
+                decomposition["reliability"].astype(float)
+                - decomposition["resolution"].astype(float)
+                + decomposition["uncertainty"].astype(float)
+            )
+        ).abs()
+        identity_max = float(identity_error.max())
+    return [
+        _check(
+            "phase_14",
+            "decomposition_model_set",
+            "PASS" if expected_models <= observed_models else "FAIL",
+            "Murphy decomposition includes expected Phase 14 model set",
+            "Murphy decomposition is missing expected models",
+            {"observed": sorted(observed_models), "expected": sorted(expected_models)},
+        ),
+        _check(
+            "phase_14",
+            "decomposition_required_columns",
+            "PASS"
+            if not decomposition_missing and not bins_missing
+            else "FAIL",
+            "Murphy decomposition artifacts include required component and bin columns",
+            "Murphy decomposition artifacts are missing required columns",
+            {
+                "decomposition_missing": decomposition_missing,
+                "bins_missing": bins_missing,
+            },
+        ),
+        _check(
+            "phase_14",
+            "decomposition_identity",
+            "PASS" if identity_max <= 1e-12 else "FAIL",
+            "Murphy components satisfy decomposed_brier = reliability - resolution + uncertainty",
+            "Murphy component identity check failed",
+            {"max_identity_error": identity_max},
+        ),
+        _check(
+            "phase_14",
+            "decomposition_binning_residual_reported",
+            "PASS" if "binning_residual" in decomposition.columns else "FAIL",
+            "Murphy decomposition reports binning_residual",
+            "Murphy decomposition does not report binning_residual",
+            {
+                "summary_limitations": summary.get("limitations", []),
+                "max_abs_binning_residual": (
+                    float(decomposition["binning_residual"].astype(float).abs().max())
+                    if "binning_residual" in decomposition.columns
+                    else None
+                ),
+            },
+        ),
+    ]
+
+
 def _audit_edge(config: FinalAuditConfig) -> list[dict[str, Any]]:
     summary = _read_json(config.edge_dir / "summary.json")
     candidates = pd.read_parquet(
@@ -839,6 +961,12 @@ def _audit_reporting(config: FinalAuditConfig) -> list[dict[str, Any]]:
     table_dir = config.table_manifest_path.parent
     score_table = pd.read_csv(table_dir / "overall_score_comparison.csv")
     calibration_table = pd.read_csv(table_dir / "calibration_intercept_slope.csv")
+    decomposition_table_path = table_dir / "murphy_decomposition.csv"
+    decomposition_table = (
+        pd.read_csv(decomposition_table_path)
+        if decomposition_table_path.exists()
+        else pd.DataFrame()
+    )
     score_required = {
         "brier_score_ci_lower",
         "brier_delta_p_value",
@@ -888,6 +1016,29 @@ def _audit_reporting(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "manuscript manifests include Phase 13 inference artifact sources",
             "manuscript manifests do not include inference artifact sources",
             {"source_artifacts": source_artifacts},
+        ),
+        _check(
+            "phase_9_14",
+            "reporting_sources_include_decomposition",
+            "PASS" if "decomposition" in source_text else "FAIL",
+            "manuscript manifests include Phase 14 decomposition artifact sources",
+            "manuscript manifests do not include decomposition artifact sources",
+            {"source_artifacts": source_artifacts},
+        ),
+        _check(
+            "phase_9_14",
+            "reporting_tables_include_decomposition",
+            "PASS"
+            if not decomposition_table.empty
+            and {"reliability", "resolution", "uncertainty", "binning_residual"}
+            <= set(decomposition_table.columns)
+            else "FAIL",
+            "manuscript tables include Murphy decomposition components",
+            "manuscript tables are missing Murphy decomposition output",
+            {
+                "table_exists": decomposition_table_path.exists(),
+                "columns": list(decomposition_table.columns),
+            },
         ),
         _check(
             "phase_9_13",
@@ -1142,6 +1293,10 @@ def _semantics_markdown(
         "- `event_family_id` uses audited regex grouping where available and explicit "
         "event_id/contract_id fallbacks elsewhere; Phase 13 inference resamples these "
         "event-family clusters.",
+        "- Phase 14 adds binned reliability correction and an experimental "
+        "`hierarchical_eb` empirical-Bayes additive recalibrator.",
+        "- Murphy decomposition is reported from fixed-width bins, with binning residuals "
+        "retained rather than treated as exact Brier identities.",
         "- Edge outputs remain simulated expected-value screens, not executable trading profits.",
         "",
         "## Phase Status",
@@ -1231,6 +1386,11 @@ def _configured_artifacts(config: FinalAuditConfig) -> dict[str, Path]:
         "inference_paired_loss_diagnostics": (
             config.inference_dir / "paired_loss_diagnostics.parquet"
         ),
+        "decomposition_summary": config.decomposition_dir / "summary.json",
+        "decomposition_murphy_decomposition": (
+            config.decomposition_dir / "murphy_decomposition.parquet"
+        ),
+        "decomposition_murphy_bins": config.decomposition_dir / "murphy_bins.parquet",
         "robustness_summary": config.robustness_dir / "summary.json",
         "figure_manifest": config.figure_manifest_path,
         "table_manifest": config.table_manifest_path,

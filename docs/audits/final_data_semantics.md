@@ -10,15 +10,18 @@ This Phase 11 audit inspects saved artifacts only. It does not rebuild data, ref
 - Cleaned interim contracts currently do not retain a separate raw `close_time` column, so the resolution/close-time mapping remains a documented semantic limitation.
 - Domain/category taxonomy is rule-based and audited, but low-confidence title, ambiguous, and unknown assignments remain non-confirmatory.
 - `event_family_id` uses audited regex grouping where available and explicit event_id/contract_id fallbacks elsewhere; Phase 13 inference resamples these event-family clusters.
+- Phase 14 adds binned reliability correction and an experimental `hierarchical_eb` empirical-Bayes additive recalibrator.
+- Murphy decomposition is reported from fixed-width bins, with binning residuals retained rather than treated as exact Brier identities.
 - Edge outputs remain simulated expected-value screens, not executable trading profits.
 
 ## Phase Status
 
 | phase | status | pass_count | partial_count | fail_count |
 | --- | --- | --- | --- | --- |
-| artifact_inventory | PASS | 30 | 0 | 0 |
+| artifact_inventory | PASS | 33 | 0 | 0 |
 | phase_10 | PASS | 2 | 0 | 0 |
 | phase_13 | PASS | 4 | 0 | 0 |
+| phase_14 | PASS | 6 | 0 | 0 |
 | phase_1_2 | PASS | 1 | 0 | 0 |
 | phase_2 | PARTIAL | 2 | 1 | 0 |
 | phase_3 | PASS | 6 | 0 | 0 |
@@ -29,6 +32,7 @@ This Phase 11 audit inspects saved artifacts only. It does not rebuild data, ref
 | phase_8 | PARTIAL | 4 | 1 | 0 |
 | phase_9 | PASS | 3 | 0 | 0 |
 | phase_9_13 | PASS | 2 | 0 | 0 |
+| phase_9_14 | PASS | 2 | 0 | 0 |
 | taxonomy | PASS | 5 | 0 | 0 |
 
 ## Partial Checks
@@ -46,4 +50,4 @@ No failed checks.
 ## Source Config
 
 - Config path: `configs/final_audit.yaml`
-- Config SHA256: `20e1847fa8450125a3f613cdba496fc22ffb0e56d1f37bf94628aa76b4700ce9`
+- Config SHA256: `46eedb00550c3fdca14fc3e449332441db3ca9436101bea84267d4a6b00e67b3`
