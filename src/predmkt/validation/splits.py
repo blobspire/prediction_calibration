@@ -225,6 +225,13 @@ def normalize_split_panel(
             "event_family_id": event_family.astype("string"),
         }
     )
+    for optional_ts_column in ("close_time", "resolution_ts"):
+        if optional_ts_column in panel.columns:
+            normalized[optional_ts_column] = pd.to_datetime(
+                panel[optional_ts_column],
+                utc=True,
+                errors="raise",
+            )
     if normalized["forecast_ts"].isna().any():
         raise SplitValidationError("forecast_ts contains null values")
     if normalized["contract_id"].isna().any():

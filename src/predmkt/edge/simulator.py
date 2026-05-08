@@ -265,6 +265,7 @@ def _join_predictions_to_panel(
         config.cumulative_volume_column,
         "snapshot_method",
         "price_timestamp",
+        "close_time",
         "domain",
         "category",
     }
@@ -442,6 +443,7 @@ def _candidate_columns(frame: pd.DataFrame, config: EdgeSimulationConfig) -> pd.
         config.cumulative_volume_column,
         "snapshot_method",
         "price_timestamp",
+        "close_time",
         "domain",
         "category",
     ]
@@ -493,6 +495,7 @@ def _excluded_rows(frame: pd.DataFrame, reasons: pd.Series) -> pd.DataFrame:
             "event_family_id",
             "horizon_name",
             "forecast_ts",
+            "close_time",
             "resolution_ts",
             "friction_tier",
         )

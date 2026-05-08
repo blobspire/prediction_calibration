@@ -473,11 +473,11 @@ data/artifacts/final_audit/summary.json
 docs/audits/final_data_semantics.md
 ```
 
-The current expected verdict remains `PARTIAL`: hard invariants can pass, but
-`resolution_ts` / `close_time` semantics, taxonomy ambiguity, report-only
-event-family overlaps, simulated edge outputs, missing quote depth, and
-hierarchical-model experimental status remain final-deployment limitations
-tracked in `ROADMAP.md`.
+The current expected verdict remains `PARTIAL`: hard invariants can pass and
+raw `close_time` is now retained separately from normalized `resolution_ts`,
+but report-only event-family overlaps, simulated edge outputs, missing quote
+depth, taxonomy ambiguity, and hierarchical-model experimental status remain
+final-deployment limitations tracked in `ROADMAP.md`.
 
 Use the tests to verify the package imports and schema utilities:
 

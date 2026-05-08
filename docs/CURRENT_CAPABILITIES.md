@@ -284,13 +284,16 @@ Capabilities:
 
 - Identify resolved binary contracts using `market_type == binary`, `status == finalized`, non-null `close_time`, and `result in {yes,no}`.
 - Normalize contracts to one row per `contract_id`.
+- Retain raw Becker/Kalshi `close_time` separately from normalized
+  `resolution_ts` for downstream semantic audits.
 - Normalize cleaned trade observations to `source_ts`, YES/NO prices, volume, taker side, and source fetch timestamp.
 - Filter price observations to resolved binary contract IDs.
 - Write exclusion summaries and build summary JSON.
 
 Limitations:
 
-- Uses `close_time` as provisional `resolution_ts`; this still needs family-level verification.
+- Uses `close_time` as provisional `resolution_ts`; the raw field is retained,
+  but family-level verification of outcome-knowledge timing remains future work.
 - Excludes ambiguous/unresolved rows by rule, but does not yet produce rich quarantine tables with example rows.
 - Full price build can be slow because batches are checked against the resolved contract ID set.
 
@@ -462,8 +465,9 @@ Capabilities:
 - Generates raw-baseline audit tables and figures for staleness, snapshot-method
   sensitivity, stricter close/1h variants, balanced-horizon composition,
   YES-side outcome orientation, and close timestamp semantics.
-- Records whether cleaned contract `close_time` is available separately; current
-  cleaned data retains `resolution_ts` but not a separate `close_time` column.
+- Records that cleaned contract `close_time` is available separately from
+  normalized `resolution_ts` and propagates through snapshot, modeling,
+  split, prediction, and edge metadata artifacts.
 - Writes machine-readable audit artifacts and an effective config summary under
   `data/artifacts/raw_baseline/audit/`.
 - Generates manuscript score, calibration, edge-friction, and limitation tables
@@ -490,9 +494,8 @@ Limitations:
 - Manuscript tables require full walk-forward and edge artifacts by default.
 - Robustness tables are sensitivity diagnostics, not replacement confirmatory
   results.
-- Final audit can still return `PARTIAL`, not `PASS`, because taxonomy,
-  event-family grouping, close-time semantics, and edge executability remain
-  open final-deployment blockers.
+- Final audit can still return `PARTIAL`, not `PASS`, because event-family
+  overlap policy and edge executability remain open final-deployment blockers.
 
 ### `src/predmkt/validation/`
 

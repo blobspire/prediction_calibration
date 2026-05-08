@@ -26,7 +26,9 @@ def test_clean_contracts_identifies_resolved_binary_contracts() -> None:
     assert result.exclusion_counts["duplicate_resolved_market_snapshot"] == 1
     assert result.table["contract_id"].to_pylist() == ["A"]
     assert result.table["outcome"].to_pylist() == ["yes"]
+    assert result.table["close_time"].type == pa.timestamp("us", tz="UTC")
     assert result.table["resolution_ts"].type == pa.timestamp("us", tz="UTC")
+    assert result.table["close_time"].to_pylist() == result.table["resolution_ts"].to_pylist()
 
 
 def test_clean_price_observations_filters_invalid_and_unresolved_trades() -> None:
@@ -170,4 +172,3 @@ def _ts_array(values: list[str]) -> pa.Array:
         [datetime.fromisoformat(value) for value in values],
         type=pa.timestamp("us", tz="UTC"),
     )
-

@@ -79,6 +79,7 @@ def test_build_feature_panel_uses_only_pre_forecast_observations(tmp_path: Path)
     assert row["logit_probability"] == pytest.approx(6.906754778648553)
     assert row["horizon_name"] == "1d"
     assert row["horizon_timedelta"] == 86_400
+    assert row["close_time"] == datetime(2024, 1, 10, tzinfo=UTC)
     assert row["forecast_month"] == "2024-01"
     assert row["listing_month"] == "2023-12"
     assert row["price_staleness_seconds"] == 0
@@ -167,6 +168,7 @@ def _panel_table() -> pa.Table:
             "horizon_bucket": ["1d"],
             "horizon_timedelta_seconds": [86_400],
             "forecast_ts": _ts_array([datetime(2024, 1, 9, tzinfo=UTC)]),
+            "close_time": _ts_array([datetime(2024, 1, 10, tzinfo=UTC)]),
             "resolution_ts": _ts_array([datetime(2024, 1, 10, tzinfo=UTC)]),
             "snapshot_price": [0.9995],
             "snapshot_method": ["last_trade"],

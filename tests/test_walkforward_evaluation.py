@@ -35,6 +35,7 @@ def test_walkforward_evaluation_writes_expected_artifacts(tmp_path: Path) -> Non
         assert Path(artifact).exists()
 
     predictions = pq.read_table(tmp_path / "artifacts" / "predictions.parquet").to_pandas()
+    assert "close_time" in predictions.columns
     expected_test_rows = {6, 7, 8, 9}
     for _, frame in predictions.groupby("model_name"):
         assert set(frame["row_id"]) == expected_test_rows
@@ -179,6 +180,7 @@ def _panel() -> pd.DataFrame:
                 "horizon_name": "1d" if row_id % 2 == 0 else "7d",
                 "domain": "macro" if row_id % 2 == 0 else "sports",
                 "forecast_ts": pd.Timestamp(forecast, tz="UTC"),
+                "close_time": pd.Timestamp(resolution, tz="UTC"),
                 "resolution_ts": pd.Timestamp(resolution, tz="UTC"),
                 "raw_probability": probabilities[row_id],
                 "observed_outcome": outcomes[row_id],

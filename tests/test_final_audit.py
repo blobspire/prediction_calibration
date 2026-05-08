@@ -344,6 +344,10 @@ def _snapshot_panel(*, snapshot_lookahead: bool) -> pd.DataFrame:
                 pd.Timestamp("2023-12-10", tz="UTC"),
                 pd.Timestamp("2024-01-10", tz="UTC"),
             ],
+            "close_time": [
+                pd.Timestamp("2023-12-10", tz="UTC"),
+                pd.Timestamp("2024-01-10", tz="UTC"),
+            ],
             "price_timestamp": price_ts,
             "last_trade_ts": price_ts,
             "max_source_ts": price_ts,
@@ -362,6 +366,10 @@ def _panel(*, unknown_taxonomy: bool) -> pd.DataFrame:
                 pd.Timestamp("2024-01-05", tz="UTC"),
             ],
             "resolution_ts": [
+                pd.Timestamp("2023-12-10", tz="UTC"),
+                pd.Timestamp("2024-01-10", tz="UTC"),
+            ],
+            "close_time": [
                 pd.Timestamp("2023-12-10", tz="UTC"),
                 pd.Timestamp("2024-01-10", tz="UTC"),
             ],
@@ -448,6 +456,7 @@ def _write_walkforward(
                 "horizon_name": "1d",
                 "forecast_ts": pd.Timestamp("2024-01-05", tz="UTC"),
                 "resolution_ts": pd.Timestamp("2024-01-10", tz="UTC"),
+                "close_time": pd.Timestamp("2024-01-10", tz="UTC"),
                 "observed_outcome": 1,
                 "raw_probability": 0.7,
                 "predicted_probability": 0.75,

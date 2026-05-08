@@ -260,11 +260,11 @@ def _audit_interim_semantics(config: FinalAuditConfig) -> list[dict[str, Any]]:
         _check(
             "phase_2",
             "close_time_not_retained",
-            "PARTIAL" if "close_time" not in contracts else "PASS",
+            "PASS" if "close_time" in contracts else "FAIL",
             "interim contracts retain close_time separately",
             "cleaned contracts do not retain raw close_time separately; resolution_ts is the "
             "audited downstream timestamp and remains a semantic limitation",
-            {"known_limitation": "resolution_ts_close_time_not_separately_retained"},
+            {"required_column": "close_time"},
         )
     )
     contract_excluded = int(summary.get("contracts", {}).get("excluded_rows", 0))
@@ -285,17 +285,21 @@ def _audit_interim_semantics(config: FinalAuditConfig) -> list[dict[str, Any]]:
 
 def _audit_snapshot_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
     summary = _read_json(config.snapshot_summary_path)
+    available_columns = set(_parquet_columns(config.snapshot_panel_path))
+    read_columns = [
+        "contract_id",
+        "horizon_bucket",
+        "forecast_ts",
+        "resolution_ts",
+        "price_timestamp",
+        "last_trade_ts",
+        "max_source_ts",
+    ]
+    if "close_time" in available_columns:
+        read_columns.append("close_time")
     frame = pd.read_parquet(
         config.snapshot_panel_path,
-        columns=[
-            "contract_id",
-            "horizon_bucket",
-            "forecast_ts",
-            "resolution_ts",
-            "price_timestamp",
-            "last_trade_ts",
-            "max_source_ts",
-        ],
+        columns=read_columns,
     )
     frame["forecast_ts"] = pd.to_datetime(frame["forecast_ts"], utc=True)
     frame["resolution_ts"] = pd.to_datetime(frame["resolution_ts"], utc=True)
@@ -333,6 +337,14 @@ def _audit_snapshot_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "all snapshot rows satisfy forecast_ts < resolution_ts",
             "snapshot rows violate forecast_ts < resolution_ts",
             {"bad_rows": bad_order},
+        ),
+        _check(
+            "phase_3",
+            "snapshot_close_time_retained",
+            "PASS" if "close_time" in available_columns else "FAIL",
+            "snapshot panel retains raw close_time separately from resolution_ts",
+            "snapshot panel does not retain raw close_time separately from resolution_ts",
+            {"required_column": "close_time"},
         ),
         _check(
             "phase_3",
@@ -396,6 +408,8 @@ def _audit_modeling_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
         "event_family_id_inferred",
         *[column for column in taxonomy_required if column in available_columns],
     ]
+    if "close_time" in available_columns:
+        read_columns.append("close_time")
     frame = pd.read_parquet(
         config.modeling_panel_path,
         columns=read_columns,
@@ -445,6 +459,14 @@ def _audit_modeling_panel(config: FinalAuditConfig) -> list[dict[str, Any]]:
                 "bad_price_timestamp": bad_price_ts,
                 "bad_feature_source": bad_feature_ts,
             },
+        ),
+        _check(
+            "phase_4_5",
+            "modeling_close_time_retained",
+            "PASS" if "close_time" in available_columns else "FAIL",
+            "modeling panel retains raw close_time separately from resolution_ts",
+            "modeling panel does not retain raw close_time separately from resolution_ts",
+            {"required_column": "close_time"},
         ),
         _check(
             "taxonomy",
@@ -549,21 +571,25 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
     elif any(token in event_policy for token in ("filter", "exclude", "strict")):
         event_policy_status = "PASS"
     predictions_path = config.walkforward_dir / "predictions.parquet"
+    prediction_columns = _parquet_columns(predictions_path)
+    read_columns = [
+        "fold_id",
+        "model_name",
+        "row_id",
+        "contract_id",
+        "event_family_id",
+        "horizon_name",
+        "forecast_ts",
+        "resolution_ts",
+        "observed_outcome",
+        "raw_probability",
+        "predicted_probability",
+    ]
+    if "close_time" in prediction_columns:
+        read_columns.append("close_time")
     predictions = pd.read_parquet(
         predictions_path,
-        columns=[
-            "fold_id",
-            "model_name",
-            "row_id",
-            "contract_id",
-            "event_family_id",
-            "horizon_name",
-            "forecast_ts",
-            "resolution_ts",
-            "observed_outcome",
-            "raw_probability",
-            "predicted_probability",
-        ],
+        columns=read_columns,
     )
     expected_models = set(config.expected_models)
     observed_models = set(predictions["model_name"].astype(str).unique())
@@ -638,6 +664,14 @@ def _audit_walkforward(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "calibrator fit row counts match train+validation labels resolved by test start",
             "calibrator fit row counts do not match the resolved-by-test-start policy",
             {"mismatch_count": fit_mismatches},
+        ),
+        _check(
+            "phase_7",
+            "prediction_close_time_retained",
+            "PASS" if "close_time" in prediction_columns else "FAIL",
+            "walk-forward predictions retain raw close_time separately from resolution_ts",
+            "walk-forward predictions do not retain raw close_time separately from resolution_ts",
+            {"required_column": "close_time"},
         ),
         _check(
             "phase_14",
@@ -1275,6 +1309,16 @@ def _semantics_markdown(
 ) -> str:
     failed = checks[checks["status"] == "FAIL"] if not checks.empty else pd.DataFrame()
     partial = checks[checks["status"] == "PARTIAL"] if not checks.empty else pd.DataFrame()
+    close_time_retained = _check_status(checks, "close_time_not_retained") == "PASS"
+    close_time_line = (
+        "- Cleaned interim contracts retain raw `close_time` separately from normalized "
+        "`resolution_ts`; downstream snapshot/modeling/prediction artifacts are audited "
+        "for the same retained field."
+        if close_time_retained
+        else "- Cleaned interim contracts currently do not retain a separate raw "
+        "`close_time` column, so the resolution/close-time mapping remains a documented "
+        "semantic limitation."
+    )
     lines = [
         "# Final Data Semantics Audit",
         "",
@@ -1286,8 +1330,7 @@ def _semantics_markdown(
         "## Key Semantic Findings",
         "",
         "- `resolution_ts` is the normalized timestamp used by downstream panels.",
-        "- Cleaned interim contracts currently do not retain a separate raw `close_time` column, "
-        "so the resolution/close-time mapping remains a documented semantic limitation.",
+        close_time_line,
         "- Domain/category taxonomy is rule-based and audited, but low-confidence title, "
         "ambiguous, and unknown assignments remain non-confirmatory.",
         "- `event_family_id` uses audited regex grouping where available and explicit "
@@ -1321,6 +1364,15 @@ def _semantics_markdown(
         f"- Config SHA256: `{config.config_sha256}`",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _check_status(checks: pd.DataFrame, check_id: str) -> str | None:
+    if checks.empty or "check_id" not in checks.columns:
+        return None
+    matches = checks.loc[checks["check_id"] == check_id, "status"]
+    if matches.empty:
+        return None
+    return str(matches.iloc[0])
 
 
 def _markdown_table(frame: pd.DataFrame) -> str:

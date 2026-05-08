@@ -144,6 +144,11 @@ def build_raw_baseline_audit(config: RawBaselineAuditConfig) -> RawBaselineAudit
     orientation = orientation_diagnostics(panel)
     close_semantics = close_timestamp_semantics(panel, config)
     close_stale = close_stale_flags(panel, config)
+    close_time_retained = bool(
+        not close_semantics.empty
+        and "close_time_available" in close_semantics.columns
+        and close_semantics["close_time_available"].fillna(False).any()
+    )
 
     artifacts = _artifact_paths(config.audit_dir)
     staleness.to_parquet(artifacts["staleness"], index=False)
@@ -223,9 +228,14 @@ def build_raw_baseline_audit(config: RawBaselineAuditConfig) -> RawBaselineAudit
         limitations=[
             "Diagnostics do not change the confirmatory methodology or baseline artifacts.",
             "Strict close/1h variants are sensitivity diagnostics, not a new selected model.",
-            "Resolution timestamp is the cleaned contract resolution_ts, which currently "
-            "comes from Becker/Kalshi close_time; no separate raw close_time is retained "
-            "in the cleaned contracts table or modeling panel.",
+            (
+                "Cleaned contracts retain Becker/Kalshi close_time separately from "
+                "normalized resolution_ts for close timestamp diagnostics."
+                if close_time_retained
+                else "Resolution timestamp is the cleaned contract resolution_ts, which "
+                "currently comes from Becker/Kalshi close_time; no separate raw close_time "
+                "is retained in the cleaned contracts table or modeling panel."
+            ),
             "Snapshot prices are transaction-derived YES-side probabilities; historical "
             "quote midpoint or executable quote data are unavailable.",
         ],

@@ -171,7 +171,7 @@ uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
 
 The output has at most one row per `contract_id x horizon_bucket`. It includes both last-trade and short-window VWAP fields on the same row. The primary `snapshot_price` uses VWAP when at least one trade is present in the VWAP window, otherwise it falls back to last trade.
 
-Canonical fields for downstream metrics include `contract_id`, `event_id`, `outcome`, `observed_outcome`, `horizon_bucket`, `horizon_timedelta_seconds`, `forecast_ts`, `resolution_ts`, `snapshot_price`, `snapshot_method`, `price_timestamp`, and `staleness_seconds`. Existing source-method fields such as `last_trade_ts`, `max_source_ts`, `vwap_volume`, and `vwap_trade_count` are preserved.
+Canonical fields for downstream metrics include `contract_id`, `event_id`, `outcome`, `observed_outcome`, `horizon_bucket`, `horizon_timedelta_seconds`, `forecast_ts`, raw `close_time`, normalized `resolution_ts`, `snapshot_price`, `snapshot_method`, `price_timestamp`, and `staleness_seconds`. Existing source-method fields such as `last_trade_ts`, `max_source_ts`, `vwap_volume`, and `vwap_trade_count` are preserved.
 
 Initial full horizon-grid output:
 

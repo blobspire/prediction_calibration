@@ -33,7 +33,6 @@ audit:
   expected_edge_trade_side: "YES"
   expected_reporting_run_label: full
   known_partial_limitations:
-    - resolution_ts_close_time_not_separately_retained
     - taxonomy_low_confidence_ambiguous_unknown_rows
     - event_family_regex_and_fallback_mix
     - edge_outputs_simulated_not_executable
@@ -53,7 +52,6 @@ audit:
       - missing_phase14_decomposition_artifacts
       - hierarchical_model_not_labeled_experimental
     partial_allowed:
-      - resolution_ts_close_time_not_separately_retained
       - taxonomy_low_confidence_ambiguous_unknown_rows
       - event_family_regex_and_fallback_mix
       - edge_outputs_simulated_not_executable

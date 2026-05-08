@@ -67,6 +67,7 @@ REQUIRED_FEATURE_COLUMNS = (
     "contract_id",
     "horizon_name",
     "forecast_ts",
+    "close_time",
     "resolution_ts",
     "raw_probability",
     "clipped_probability",

@@ -121,23 +121,24 @@ def evaluate_walkforward(config: ModelsConfig) -> WalkForwardEvaluationSummary:
                 predictions,
                 strict=True,
             ):
-                prediction_rows.append(
-                    {
-                        "fold_id": fold_id,
-                        "model_name": calibrator.name,
-                        "row_id": int(row["row_id"]),
-                        "contract_id": row["contract_id"],
-                        "event_family_id": row[config.event_family_column],
-                        "horizon_name": row[config.horizon_column],
-                        "forecast_ts": row["forecast_ts"],
-                        "resolution_ts": row[config.resolution_column],
-                        "observed_outcome": int(row[config.outcome_column]),
-                        "raw_probability": float(row[config.probability_column]),
-                        "predicted_probability": float(prediction),
-                        "fit_status": calibrator.status,
-                        "fit_row_count": int(len(fit_frame)),
-                    }
-                )
+                prediction_row = {
+                    "fold_id": fold_id,
+                    "model_name": calibrator.name,
+                    "row_id": int(row["row_id"]),
+                    "contract_id": row["contract_id"],
+                    "event_family_id": row[config.event_family_column],
+                    "horizon_name": row[config.horizon_column],
+                    "forecast_ts": row["forecast_ts"],
+                    "resolution_ts": row[config.resolution_column],
+                    "observed_outcome": int(row[config.outcome_column]),
+                    "raw_probability": float(row[config.probability_column]),
+                    "predicted_probability": float(prediction),
+                    "fit_status": calibrator.status,
+                    "fit_row_count": int(len(fit_frame)),
+                }
+                if "close_time" in row:
+                    prediction_row["close_time"] = row["close_time"]
+                prediction_rows.append(prediction_row)
 
     predictions = pd.DataFrame(prediction_rows)
     if predictions.empty:
@@ -224,6 +225,8 @@ def _load_panel(config: ModelsConfig) -> pd.DataFrame:
         utc=True,
         errors="raise",
     )
+    if "close_time" in panel.columns:
+        panel["close_time"] = pd.to_datetime(panel["close_time"], utc=True, errors="raise")
     return panel
 
 
