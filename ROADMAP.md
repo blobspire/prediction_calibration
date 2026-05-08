@@ -391,6 +391,12 @@ evidence.
 
 ## Phase 17 — Final reproducibility and deployment gate
 
+Status: implemented as of 2026-05-08. The readiness layer records full-run
+commands, config hashes, selected artifact hashes, data snapshot metadata,
+scoped CI check results, and final claim boundaries. Edge/PnL outputs remain
+simulated screens, and domain-level claims still require taxonomy-confidence
+review.
+
 ### Goal
 Make the project publication/deployment ready.
 

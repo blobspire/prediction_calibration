@@ -192,9 +192,10 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
             "refit models, or change methodology.",
             "A PARTIAL verdict can be acceptable for Phase 11 when hard invariants pass but "
             "known semantic limitations remain.",
-            "Final deployment still requires Phase 17 run-registry/readiness hardening; "
-            "taxonomy/domain claims remain conditional on confidence and ambiguity review, "
-            "and edge outputs remain simulated screens without order-book depth.",
+            "Final deployment claims should be checked against the Phase 17 run registry "
+            "and readiness audit; taxonomy/domain claims remain conditional on confidence "
+            "and ambiguity review, and edge outputs remain simulated screens without "
+            "order-book depth.",
         ],
     )
     paths["summary"].write_text(

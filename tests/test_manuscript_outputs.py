@@ -18,6 +18,8 @@ def test_reporting_config_loads(tmp_path: Path) -> None:
     assert config.edge_artifact_dir == tmp_path / "edge"
     assert config.inference_artifact_dir == tmp_path / "inference"
     assert config.decomposition_artifact_dir == tmp_path / "decomposition"
+    assert config.processed_dir == tmp_path / "processed"
+    assert config.modeling_panel_path == tmp_path / "processed" / "modeling_panel.parquet"
     assert config.figure_dir == tmp_path / "figures"
     assert config.table_dir == tmp_path / "tables"
     assert config.artifact_run_label == "full"
@@ -33,10 +35,13 @@ def test_make_manuscript_figures_writes_outputs(tmp_path: Path) -> None:
     summary = make_manuscript_figures(config)
 
     assert set(summary.figure_paths) == {
+        "sample_construction_flowchart",
         "reliability_overall",
         "reliability_by_horizon_model",
         "calibration_slope_heatmap",
         "score_comparison",
+        "calibration_gain_over_time",
+        "domain_reliability_exploratory",
         "edge_friction_sensitivity",
         "edge_simulated_pnl",
     }
@@ -64,6 +69,7 @@ def test_make_manuscript_tables_writes_outputs(tmp_path: Path) -> None:
         "edge_capacity_summary",
         "edge_simulated_pnl_summary",
         "murphy_decomposition",
+        "domain_reliability_exploratory",
         "artifact_source_limitations",
     }
     assert (tmp_path / "tables" / "table_manifest.json").exists()
@@ -86,6 +92,8 @@ def test_make_manuscript_tables_writes_outputs(tmp_path: Path) -> None:
     assert {"reliability", "resolution", "uncertainty", "binning_residual"} <= set(
         decomposition.columns
     )
+    domain = pd.read_csv(tmp_path / "tables" / "domain_reliability_exploratory.csv")
+    assert domain["claim_status"].eq("exploratory_taxonomy_review_required").all()
     executability = pd.read_csv(tmp_path / "tables" / "edge_executability_audit.csv")
     assert "quote_depth_available" in executability.columns
 
@@ -168,6 +176,8 @@ def _write_config(tmp_path: Path) -> Path:
     config_path.write_text(
         f"""
 inputs:
+  processed_dir: {tmp_path / "processed"}
+  modeling_panel_path: {tmp_path / "processed" / "modeling_panel.parquet"}
   raw_baseline_artifact_dir: {tmp_path / "raw_baseline"}
   walkforward_artifact_dir: {tmp_path / "walkforward"}
   edge_artifact_dir: {tmp_path / "edge"}
@@ -194,11 +204,13 @@ reporting:
 
 
 def _write_artifacts(tmp_path: Path) -> None:
+    processed_dir = tmp_path / "processed"
     raw_dir = tmp_path / "raw_baseline"
     walk_dir = tmp_path / "walkforward"
     edge_dir = tmp_path / "edge"
     inference_dir = tmp_path / "inference"
     decomposition_dir = tmp_path / "decomposition"
+    processed_dir.mkdir()
     raw_dir.mkdir()
     walk_dir.mkdir()
     edge_dir.mkdir()
@@ -208,6 +220,23 @@ def _write_artifacts(tmp_path: Path) -> None:
         json.dumps({"limitations": ["raw limitation"]}),
         encoding="utf-8",
     )
+    (processed_dir / "contract_horizon_panel_summary.json").write_text(
+        json.dumps({"candidate_count": 40, "row_count": 20}),
+        encoding="utf-8",
+    )
+    (processed_dir / "contract_horizon_taxonomy_summary.json").write_text(
+        json.dumps({"output_row_count": 20}),
+        encoding="utf-8",
+    )
+    (processed_dir / "modeling_panel_summary.json").write_text(
+        json.dumps({"output_row_count": 20}),
+        encoding="utf-8",
+    )
+    (processed_dir / "walkforward_split_summary.json").write_text(
+        json.dumps({"input_row_count": 20, "fold_count": 1}),
+        encoding="utf-8",
+    )
+    _modeling_panel().to_parquet(processed_dir / "modeling_panel.parquet", index=False)
     (walk_dir / "summary.json").write_text(
         json.dumps({"limitations": ["walk limitation"]}),
         encoding="utf-8",
@@ -319,6 +348,22 @@ def _predictions() -> pd.DataFrame:
                     "fit_row_count": 50,
                 }
             )
+    return pd.DataFrame(rows)
+
+
+def _modeling_panel() -> pd.DataFrame:
+    rows = []
+    for index in range(20):
+        rows.append(
+            {
+                "contract_id": f"C{index}",
+                "horizon_name": "1d" if index < 10 else "close",
+                "forecast_ts": pd.Timestamp("2024-01-01", tz="UTC"),
+                "domain": "sports" if index < 10 else "finance",
+                "taxonomy_confidence": "high",
+                "taxonomy_ambiguous": False,
+            }
+        )
     return pd.DataFrame(rows)
 
 

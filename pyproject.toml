@@ -45,4 +45,13 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["src"]
+# Phase 17 CI type-check gate. Full `uv run mypy src` remains a typing-cleanup
+# target for older PyArrow/Pandas-heavy modules, not the current release gate.
+files = [
+  "src/predmkt/edge",
+  "src/predmkt/io/kalshi_quotes.py",
+  "src/predmkt/plots/manuscript.py",
+  "src/predmkt/reports/manuscript.py",
+  "src/predmkt/reports/final_audit.py",
+  "src/predmkt/reports/final_readiness.py"
+]

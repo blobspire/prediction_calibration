@@ -1,6 +1,6 @@
 # Current Capabilities
 
-Last updated: 2026-05-07.
+Last updated: 2026-05-08.
 
 This is the project capability registry. It tracks what the codebase can currently do,
 what artifacts exist locally, what is only partial or placeholder, and what must be
@@ -31,7 +31,7 @@ Status labels:
 | Phase 0 repository bootstrap | complete | Package scaffold, configs/data/docs/scripts/tests layout, import smoke test, README/data policy. | None material. |
 | Phase 1 raw schema inspection | complete | Read-only raw inspection, Parquet schema audit, schema validators, timestamp parsing tests. | Raw hash manifests are available for representative files, not all 50G by default. |
 | Becker raw data setup | complete | Becker repo/data present under `data/raw/becker_prediction_market_analysis`; raw repo clean. | Raw data is local and ignored; another machine must clone/download separately. |
-| Phase 2 raw-to-interim Kalshi cleaning | partial | Resolved binary contracts and cleaned price observations are built and logged. | `close_time` remains provisional resolution timestamp; no richer void/delist semantic review by family. |
+| Phase 2 raw-to-interim Kalshi cleaning | complete | Resolved binary contracts and cleaned price observations are built and logged; raw `close_time` is retained separately from normalized `resolution_ts`. | Richer void/delist semantic review by family remains a possible future audit extension. |
 | Phase 3 contract-horizon snapshots | complete | Config-driven full horizon grid, horizon-specific last-trade/VWAP policy, no-look-ahead validation, canonical panel schema. | Snapshot uses trade proxy only; no historical quotes/order book. |
 | Phase 12 taxonomy layer | complete | Ordered exact-event, event-family regex, prefix, title-keyword, and default-unknown rules produce audited domain/category/sports/event-family fields with confidence and ambiguity flags. | Domain/category claims still require confidence/ambiguity filters and manual review for low-confidence or unknown rows. |
 | Forecast feature panel | partial | Config-driven modeling panel with probabilities, horizon fields, Phase 12 taxonomy fields, staleness, cumulative activity, momentum, volatility, liquidity proxy. | Liquidity is public trade proxy only; momentum/volatility use transaction prices. |
@@ -40,13 +40,14 @@ Status labels:
 | Phase 6 recalibrators | complete | Common interface, raw/Platt/beta/isotonic/binned-reliability calibrators, experimental hierarchical-EB, model config, registry, bounded predictions, and synthetic tests. | `hierarchical_eb` remains experimental and not a full Bayesian mixed model. |
 | Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, expanded Phase 14 model set, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Full-scale audited edge interpretation remains later work. |
 | Phase 8/16 edge simulation and executability | complete | Config-driven simulated edge screens now support transaction-proxy and explicit quote-snapshot entry modes, versioned fee proxy schedules, capacity/PnL assumptions, YES/NO side checks, and executability audit artifacts. | Full trading claims remain out of scope; Becker snapshots lack order-book depth, so capacity and PnL remain assumption-dependent. |
-| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition/edge-executability artifacts under `paper/`. | Manuscript claims still need Phase 17 final readiness gate. |
+| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition/edge-executability artifacts under `paper/`, including sample construction, calibration gain over time, exploratory domain reliability, and simulated PnL. | Domain figures remain exploratory until taxonomy review. |
 | Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Phase 15 expands robustness further; all robustness outputs remain sensitivity diagnostics. |
 | Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; Phase 16 adds explicit edge-executability checks. | Phase 17 final run-registry/readiness hardening remains. |
 | Phase 13 confirmatory inference | complete | Config-driven event-family clustered uncertainty reads saved walk-forward predictions, writes score intervals, paired deltas, calibration intervals, FDR adjustments, paired-loss diagnostics, and summary artifacts. | Domain/category claims remain conditional on taxonomy confidence and ambiguity. |
 | Phase 14 expanded calibration and decomposition | complete | Default walk-forward now includes `binned_reliability` and experimental `hierarchical_eb`; Murphy-style decomposition artifacts and manuscript table are generated from saved predictions. | `hierarchical_eb` is experimental; Murphy components are binned and retain `binning_residual`. |
 | Phase 15 full robustness reruns | complete | Full robustness now covers stale/liquidity filters, equal-event-family and trade-weighted sensitivity, sports/domain/taxonomy exclusions, event-family-purged sensitivity, friction scenarios, and three full alternate snapshot-variant downstream reruns. | Robustness outputs are diagnostic and non-confirmatory; default methodology should change only if separated robustness evidence justifies it. |
-| Final deployment readiness | partial | Phase 0-16 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, clustered inference, expanded calibrators, decomposition, full robustness artifacts, and edge-executability audits. | Phase 17 in `ROADMAP.md` remains required before final publishable claims. |
+| Phase 17 final readiness | complete | Final run registry, config/artifact/data manifests, scoped CI command set, and `docs/final_readiness_audit.md` are implemented under `configs/final_run.yaml` and `scripts/build_final_run_registry.py`. | Full `uv run mypy src` remains outside the CI gate until legacy PyArrow/Pandas-heavy modules are typed. |
+| Final deployment readiness | partial | Phase 0-17 implementation is a working v1 research package with local full artifacts, final audit outputs, run registry, clustered inference, expanded calibrators, decomposition, full robustness artifacts, and edge-executability audits. | Publishable claims must still respect taxonomy, event-family, and simulated-edge limitations. |
 
 ## Current Commands
 
@@ -102,14 +103,18 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `128 passed`.
-`uv run ruff check .` also passes. The Phase 16 targeted `mypy` check passes
+Latest local verification used `uv run pytest` and passed `131 passed`
+after Phase 17 tests were added.
+`uv run ruff check .` also passes. The Phase 17 scoped `mypy` CI gate passes
 for `src/predmkt/io/kalshi_quotes.py`, `src/predmkt/edge`,
-`src/predmkt/reports/manuscript.py`, `src/predmkt/plots/manuscript.py`, and
-`src/predmkt/reports/final_audit.py`. Full walk-forward, inference,
+`src/predmkt/reports/manuscript.py`, `src/predmkt/plots/manuscript.py`,
+`src/predmkt/reports/final_audit.py`, and
+`src/predmkt/reports/final_readiness.py`. Full `uv run mypy src` is not yet
+the CI gate because older PyArrow/Pandas-heavy modules need typing cleanup.
+Full walk-forward, inference,
 edge-simulation, Murphy decomposition, manuscript, robustness, small-sample
-replication, quote, and final-audit artifacts exist under their configured
-output roots after the Phase 16 run.
+replication, quote, final-audit, and final-run-registry artifacts exist under
+their configured output roots after the Phase 17 readiness run.
 
 ## Config Registry
 
@@ -132,6 +137,7 @@ output roots after the Phase 16 run.
 | `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, taxonomy-rule domain exclusions, friction scenarios, and small snapshot variants. |
 | `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs including inference/decomposition, limits, run label, and separate processed/artifact/paper output roots. |
 | `configs/final_audit.yaml` | complete | Phase 11+ saved-artifact and data-semantics audit inputs, Phase 13 inference checks, Phase 14 decomposition/experimental-label checks, Phase 15 robustness checks, Phase 16 edge-executability checks, expected horizons/models, full-run labels, hard-fail/partial severity rules, known limitations, and audit output paths. |
+| `configs/final_run.yaml` | complete | Phase 17 final run registry inputs, full-run and small-sample command documentation, config/artifact/data manifest policy, scoped CI command set, and readiness audit output paths. |
 
 ## Local Data Artifacts
 
@@ -271,6 +277,16 @@ Processed outputs:
 - `data/artifacts/final_audit/summary.json`: current overall status is
   `PASS`.
 - `docs/audits/final_data_semantics.md`
+- `data/artifacts/final_run_registry/run_registry.json`
+- `data/artifacts/final_run_registry/config_manifest.parquet`
+- `data/artifacts/final_run_registry/configs_snapshot/`
+- `data/artifacts/final_run_registry/artifact_manifest.parquet`
+- `data/artifacts/final_run_registry/data_snapshot_manifest.parquet`
+- `data/artifacts/final_run_registry/check_results.parquet`: current required
+  checks are Ruff PASS, pytest PASS, scoped mypy PASS, and final audit PASS.
+- `data/artifacts/final_run_registry/summary.json`: current readiness status is
+  `READY_WITH_LIMITATIONS`.
+- `docs/final_readiness_audit.md`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
 
@@ -656,11 +672,12 @@ Implemented tests:
   from synthetic saved artifacts, CLI overrides, missing full-artifact failures,
   and no calibrator imports in reporting code.
 
-Missing high-priority tests:
+Remaining test coverage limitations:
 
-- Event-family leakage tests using final expanded taxonomy.
 - Full end-to-end small pipeline is exercised by command; unit coverage uses a
   dry-run command-order test rather than rerunning the pipeline inside pytest.
+- Full `uv run mypy src` is intentionally not part of the CI command set yet;
+  the scoped Phase 17 mypy command is the current gate.
 
 ## Research-Grade Gaps Before Claims
 
@@ -671,8 +688,8 @@ Cannot yet claim:
 - Event-family leakage safety under a primary exclusion policy; current
   confirmatory overlaps are reported, uncertainty is clustered by event family,
   and Phase 15 adds event-family-purged sensitivity diagnostics.
-- Final manuscript claims from figures/tables until Phase 17 reproducibility
-  and readiness hardening is complete.
+- Any claims that exceed the Phase 17 readiness boundaries recorded in
+  `docs/final_readiness_audit.md`.
 
 Required next build steps:
 
@@ -680,12 +697,19 @@ Required next build steps:
 2. Treat Phase 15 robustness outputs as diagnostic sensitivity checks; do not
    promote threshold or snapshot-policy changes without separated evidence that
    the default is materially fragile.
-3. Add a final reproducibility/run-registry gate before any publishable claims.
+3. Treat `docs/final_readiness_audit.md` and `data/artifacts/final_run_registry/`
+   as the source of truth for final reproducibility status.
 
 ## Current Phase Recommendation
 
-Next recommended task: proceed to Phase 17 reproducibility/readiness hardening.
-Phase 16 adds quote-snapshot and NO-side support where explicit asks exist, but
-edge outputs remain simulated screens because order-book depth is unavailable.
+Next recommended task: use the Phase 17 registry/readiness outputs to draft the
+paper narrative and decide whether to manually review taxonomy slices before
+making any domain-level claims. Phase 16 adds quote-snapshot and NO-side support
+where explicit asks exist, but edge outputs remain simulated screens because
+order-book depth is unavailable.
 
-Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.
+Phase 4 starts from `data/processed/modeling_panel.parquet`, uses
+`raw_probability` and `observed_outcome`, preserves one row per
+`contract_id x horizon_name`, and makes aggregation explicitly equal-contract by
+default. Domain/category slicing now uses audited Phase 12 taxonomy rules, but
+low-confidence, ambiguous, and unknown rows remain exploratory until reviewed.

@@ -1,4 +1,6 @@
 inputs:
+  processed_dir: data/processed
+  modeling_panel_path: data/processed/modeling_panel.parquet
   raw_baseline_artifact_dir: data/artifacts/raw_baseline
   walkforward_artifact_dir: data/artifacts/walkforward
   edge_artifact_dir: data/artifacts/edge_sim

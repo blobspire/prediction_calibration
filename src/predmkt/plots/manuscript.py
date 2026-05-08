@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import pandas as pd  # type: ignore[import-untyped]
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle
 
 from predmkt.metrics.reliability import reliability_bins
 from predmkt.reports.manuscript import (
@@ -64,8 +65,14 @@ def make_manuscript_figures(config: ReportingConfig) -> ManuscriptFigureSummary:
     raw_reliability = pd.read_parquet(sources["raw_baseline_reliability_bins"])
     edge_summary = pd.read_parquet(sources["edge_summary_by_model_tier"])
     simulated_pnl = pd.read_parquet(sources["edge_simulated_pnl"])
+    panel = _modeling_panel_with_row_id(sources["modeling_panel"])
 
     figure_paths = {
+        "sample_construction_flowchart": _save_figure(
+            _sample_construction_flowchart(sources),
+            config,
+            "manuscript_sample_construction_flowchart",
+        ),
         "reliability_overall": _save_figure(
             _reliability_overall_figure(predictions, raw_reliability, config),
             config,
@@ -85,6 +92,16 @@ def make_manuscript_figures(config: ReportingConfig) -> ManuscriptFigureSummary:
             _score_comparison_figure(aggregate, config),
             config,
             "manuscript_score_comparison",
+        ),
+        "calibration_gain_over_time": _save_figure(
+            _calibration_gain_over_time_figure(predictions, config),
+            config,
+            "manuscript_calibration_gain_over_time",
+        ),
+        "domain_reliability_exploratory": _save_figure(
+            _domain_reliability_figure(predictions, panel, config),
+            config,
+            "manuscript_domain_reliability_exploratory",
         ),
         "edge_friction_sensitivity": _save_figure(
             _edge_friction_sensitivity_figure(edge_summary, config),
@@ -244,6 +261,198 @@ def _score_comparison_figure(aggregate: pd.DataFrame, config: ReportingConfig) -
         ax.grid(axis="y", color=COLORS["light"], linewidth=0.8)
         ax.tick_params(axis="x", rotation=35)
     fig.suptitle("Out-of-Sample Score Comparison", fontsize=14, fontweight="bold")
+    return fig
+
+
+def _sample_construction_flowchart(sources: dict[str, Path]) -> Figure:
+    labels = [
+        ("Cleaned contracts", _summary_count(sources["snapshot_summary"], "candidate_count")),
+        ("Contract-horizon snapshots", _summary_count(sources["snapshot_summary"], "row_count")),
+        (
+            "Taxonomy-enriched panel",
+            _summary_count(sources["taxonomy_summary"], "output_row_count"),
+        ),
+        ("Modeling feature panel", _summary_count(sources["modeling_summary"], "output_row_count")),
+        (
+            "Walk-forward test rows",
+            _summary_count(sources["walkforward_summary"], "test_row_count"),
+        ),
+        (
+            "Model predictions",
+            _summary_count(sources["walkforward_summary"], "prediction_row_count"),
+        ),
+        ("Edge-screen rows", _summary_count(sources["edge_summary"], "candidate_row_count")),
+    ]
+    fig, ax = plt.subplots(figsize=(9.0, 4.8), constrained_layout=True)
+    ax.set_axis_off()
+    x_positions = [0.08, 0.22, 0.36, 0.50, 0.64, 0.78, 0.92]
+    for index, ((label, count), x_pos) in enumerate(zip(labels, x_positions, strict=True)):
+        box = Rectangle(
+            (x_pos - 0.055, 0.42),
+            0.11,
+            0.22,
+            transform=ax.transAxes,
+            facecolor="#f9fafb",
+            edgecolor=COLORS["ink"],
+            linewidth=0.9,
+        )
+        ax.add_patch(box)
+        ax.text(
+            x_pos,
+            0.56,
+            label,
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=8,
+            wrap=True,
+        )
+        ax.text(
+            x_pos,
+            0.47,
+            _format_count(count),
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=9,
+            fontweight="bold",
+        )
+        if index < len(x_positions) - 1:
+            ax.annotate(
+                "",
+                xy=(x_positions[index + 1] - 0.06, 0.53),
+                xytext=(x_pos + 0.06, 0.53),
+                xycoords=ax.transAxes,
+                arrowprops={"arrowstyle": "->", "color": COLORS["ink"], "lw": 0.9},
+            )
+    ax.text(
+        0.5,
+        0.28,
+        "Counts are generated from saved full-run artifact summaries; "
+        "no model fitting occurs in reporting code.",
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        fontsize=9,
+        color="#374151",
+    )
+    fig.suptitle("Sample Construction And Artifact Flow", fontsize=14, fontweight="bold")
+    return fig
+
+
+def _calibration_gain_over_time_figure(
+    predictions: pd.DataFrame,
+    config: ReportingConfig,
+) -> Figure:
+    raw = predictions[predictions["model_name"] == "raw"][
+        ["fold_id", "row_id", "observed_outcome", "predicted_probability"]
+    ].rename(columns={"predicted_probability": "raw_prediction"})
+    joined = predictions.merge(
+        raw,
+        on=["fold_id", "row_id", "observed_outcome"],
+        how="inner",
+        validate="many_to_one",
+    )
+    joined = joined[joined["model_name"] != "raw"].copy()
+    if joined.empty:
+        raise ReportingError("cannot draw calibration gain figure without non-raw predictions")
+    joined["model_loss"] = (
+        joined["predicted_probability"].astype(float) - joined["observed_outcome"].astype(float)
+    ) ** 2
+    joined["raw_loss"] = (
+        joined["raw_prediction"].astype(float) - joined["observed_outcome"].astype(float)
+    ) ** 2
+    gains = (
+        joined.groupby(["fold_id", "model_name"], observed=True)
+        .agg(
+            brier_delta_vs_raw=("model_loss", "mean"),
+            raw_brier=("raw_loss", "mean"),
+        )
+        .reset_index()
+    )
+    gains["brier_delta_vs_raw"] = gains["brier_delta_vs_raw"] - gains["raw_brier"]
+    gains["_fold_order"] = gains["fold_id"].astype(str).map(_fold_sort_key)
+    gains = gains.sort_values(["_fold_order", "model_name"])
+    fig, ax = plt.subplots(figsize=(9.4, 4.5), constrained_layout=True)
+    models = [model for model in config.model_order if model in set(gains["model_name"])]
+    for model_name in models:
+        frame = gains[gains["model_name"] == model_name]
+        ax.plot(
+            frame["_fold_order"],
+            frame["brier_delta_vs_raw"],
+            marker="o",
+            linewidth=1.2,
+            label=model_name,
+            color=COLORS.get(model_name),
+        )
+    ax.axhline(0.0, color=COLORS["ink"], linewidth=0.9)
+    ax.set_ylabel("Brier delta vs raw (negative is better)")
+    ax.set_xlabel("Walk-forward test fold")
+    ax.set_title("Calibration Gain Over Time")
+    ax.grid(axis="y", color=COLORS["light"], linewidth=0.8)
+    tick_values = sorted(gains["_fold_order"].unique())
+    if len(tick_values) > 12:
+        tick_values = tick_values[:: max(len(tick_values) // 8, 1)]
+    ax.set_xticks(tick_values)
+    ax.legend(frameon=False, ncols=2)
+    return fig
+
+
+def _domain_reliability_figure(
+    predictions: pd.DataFrame,
+    panel: pd.DataFrame,
+    config: ReportingConfig,
+) -> Figure:
+    if not {"row_id", "domain"} <= set(panel.columns):
+        raise ReportingError("modeling panel lacks domain columns for domain reliability figure")
+    joined = predictions.merge(
+        panel[["row_id", "domain", "taxonomy_confidence", "taxonomy_ambiguous"]],
+        on="row_id",
+        how="left",
+        validate="many_to_one",
+    )
+    model = "raw" if "raw" in set(joined["model_name"]) else config.model_order[0]
+    rows = joined[joined["model_name"] == model].copy()
+    domain_counts = rows["domain"].astype(str).value_counts()
+    domains = [item for item in domain_counts.index.tolist() if item != "ambiguous"][:6]
+    if not domains:
+        raise ReportingError("no domains available for domain reliability figure")
+    column_count = min(3, len(domains))
+    row_count = (len(domains) + column_count - 1) // column_count
+    fig, axes = plt.subplots(
+        row_count,
+        column_count,
+        figsize=(3.6 * column_count, 3.3 * row_count),
+        sharex=True,
+        sharey=True,
+    )
+    axes_list = list(axes.ravel()) if hasattr(axes, "ravel") else [axes]
+    for ax, domain in zip(axes_list, domains, strict=False):
+        frame = rows[rows["domain"].astype(str) == domain]
+        reliability = _prediction_reliability_rows(frame, config)
+        _draw_reliability(ax, reliability, domain, COLORS.get(model, "#2364aa"))
+        ax.set_title(f"{domain} (n={len(frame):,})", loc="left")
+    for ax in axes_list[len(domains) :]:
+        ax.axis("off")
+    for ax in axes_list[::column_count]:
+        ax.set_ylabel("Observed frequency")
+    for ax in axes_list[-column_count:]:
+        ax.set_xlabel("Mean predicted probability")
+    fig.suptitle(
+        f"Exploratory Reliability by Domain ({model})",
+        fontsize=14,
+        fontweight="bold",
+    )
+    fig.text(
+        0.5,
+        0.01,
+        "Domain slices are exploratory until taxonomy confidence and ambiguity "
+        "are manually reviewed.",
+        ha="center",
+        fontsize=8,
+        color="#374151",
+    )
+    fig.tight_layout(rect=(0, 0.03, 1, 0.93))
     return fig
 
 
@@ -425,6 +634,36 @@ def _available_models(frame: pd.DataFrame, config: ReportingConfig) -> list[str]
     if not models:
         raise ReportingError("no configured models found in saved predictions")
     return models
+
+
+def _modeling_panel_with_row_id(path: Path) -> pd.DataFrame:
+    panel = pd.read_parquet(path)
+    panel = panel.copy()
+    if "row_id" not in panel.columns:
+        panel.insert(0, "row_id", range(len(panel)))
+    return panel
+
+
+def _summary_count(path: Path, key: str) -> int | None:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except FileNotFoundError:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    value = raw.get(key)
+    return int(value) if isinstance(value, int) else None
+
+
+def _format_count(value: int | None) -> str:
+    return "n/a" if value is None else f"{value:,}"
+
+
+def _fold_sort_key(fold_id: object) -> int:
+    text = str(fold_id)
+    digits = "".join(character for character in text if character.isdigit())
+    return int(digits) if digits else 0
 
 
 def _save_figure(fig: Figure, config: ReportingConfig, stem: str) -> list[Path]:

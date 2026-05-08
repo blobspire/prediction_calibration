@@ -11,6 +11,8 @@ from typing import Any, cast
 import pandas as pd  # type: ignore[import-untyped]
 import yaml  # type: ignore[import-untyped]
 
+from predmkt.metrics.reliability import expected_calibration_error, reliability_bins
+
 DEFAULT_HORIZON_ORDER = ("30d", "14d", "7d", "3d", "1d", "6h", "1h", "15m", "close")
 DEFAULT_MODEL_ORDER = (
     "raw",
@@ -28,6 +30,8 @@ DEFAULT_TABLE_FORMATS = ("csv", "markdown", "latex")
 class ReportingConfig:
     """Shared configuration for manuscript figures and tables."""
 
+    processed_dir: Path
+    modeling_panel_path: Path
     raw_baseline_artifact_dir: Path
     walkforward_artifact_dir: Path
     edge_artifact_dir: Path
@@ -75,6 +79,10 @@ def load_reporting_config(path: Path) -> ReportingConfig:
     outputs = _mapping(raw, "outputs")
     reporting = _mapping(raw, "reporting")
     return ReportingConfig(
+        processed_dir=Path(inputs.get("processed_dir", "data/processed")),
+        modeling_panel_path=Path(
+            inputs.get("modeling_panel_path", "data/processed/modeling_panel.parquet")
+        ),
         raw_baseline_artifact_dir=Path(_required(inputs, "raw_baseline_artifact_dir")),
         walkforward_artifact_dir=Path(_required(inputs, "walkforward_artifact_dir")),
         edge_artifact_dir=Path(_required(inputs, "edge_artifact_dir")),
@@ -115,6 +123,8 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
     fee_schedule_audit = pd.read_parquet(sources["edge_fee_schedule_audit"])
     capacity_summary = pd.read_parquet(sources["edge_capacity_summary"])
     simulated_pnl = pd.read_parquet(sources["edge_simulated_pnl"])
+    predictions = pd.read_parquet(sources["walkforward_predictions"])
+    panel = _modeling_panel_with_row_id(sources["modeling_panel"])
     raw_summary = _read_json(sources["raw_baseline_summary"])
     walkforward_summary = _read_json(sources["walkforward_summary"])
     edge_run_summary = _read_json(sources["edge_summary"])
@@ -149,6 +159,11 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
         "edge_capacity_summary": _edge_capacity_table(capacity_summary, config),
         "edge_simulated_pnl_summary": _edge_pnl_table(simulated_pnl, config),
         "murphy_decomposition": _murphy_table(decomposition, config),
+        "domain_reliability_exploratory": _domain_reliability_table(
+            predictions,
+            panel,
+            config,
+        ),
         "artifact_source_limitations": _limitations_table(
             raw_summary,
             walkforward_summary,
@@ -180,6 +195,11 @@ def reporting_source_paths(config: ReportingConfig) -> dict[str, Path]:
     """Return required saved-artifact paths for manuscript outputs."""
 
     return {
+        "snapshot_summary": config.processed_dir / "contract_horizon_panel_summary.json",
+        "taxonomy_summary": config.processed_dir / "contract_horizon_taxonomy_summary.json",
+        "modeling_summary": config.processed_dir / "modeling_panel_summary.json",
+        "split_summary": config.processed_dir / "walkforward_split_summary.json",
+        "modeling_panel": config.modeling_panel_path,
         "raw_baseline_summary": config.raw_baseline_artifact_dir / "summary.json",
         "raw_baseline_reliability_bins": (
             config.raw_baseline_artifact_dir / "reliability_bins.parquet"
@@ -226,6 +246,8 @@ def effective_reporting_config(config: ReportingConfig) -> dict[str, Any]:
 
     return {
         "inputs": {
+            "processed_dir": str(config.processed_dir),
+            "modeling_panel_path": str(config.modeling_panel_path),
             "raw_baseline_artifact_dir": str(config.raw_baseline_artifact_dir),
             "walkforward_artifact_dir": str(config.walkforward_artifact_dir),
             "edge_artifact_dir": str(config.edge_artifact_dir),
@@ -543,6 +565,86 @@ def _murphy_table(decomposition: pd.DataFrame, config: ReportingConfig) -> pd.Da
     return rows[[column for column in columns if column in rows.columns]].copy()
 
 
+def _domain_reliability_table(
+    predictions: pd.DataFrame,
+    panel: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
+    required_panel_columns = {"row_id", "domain", "taxonomy_confidence", "taxonomy_ambiguous"}
+    if not required_panel_columns <= set(panel.columns):
+        return pd.DataFrame(
+            [
+                {
+                    "domain": "not_available",
+                    "model_name": "not_available",
+                    "row_count": 0,
+                    "expected_calibration_error": None,
+                    "claim_status": "not_available",
+                    "notes": "modeling panel lacks taxonomy columns needed for domain reliability",
+                }
+            ]
+        )
+    joined = predictions.merge(
+        panel[["row_id", "domain", "taxonomy_confidence", "taxonomy_ambiguous"]],
+        on="row_id",
+        how="left",
+        validate="many_to_one",
+    )
+    rows: list[dict[str, Any]] = []
+    for (domain, model_name), frame in joined.groupby(
+        ["domain", "model_name"],
+        dropna=False,
+        observed=True,
+    ):
+        if str(model_name) not in config.model_order:
+            continue
+        if frame.empty:
+            continue
+        bins = reliability_bins(
+            frame["predicted_probability"].astype(float).tolist(),
+            frame["observed_outcome"].astype(float).tolist(),
+            bin_count=config.reliability_bin_count,
+            min_bin_count=config.reliability_min_bin_count,
+        )
+        ece = expected_calibration_error(bins)
+        ambiguous_share = float(frame["taxonomy_ambiguous"].fillna(False).astype(bool).mean())
+        low_confidence_share = float(
+            frame["taxonomy_confidence"].astype(str).str.lower().isin({"low", "ambiguous"}).mean()
+        )
+        rows.append(
+            {
+                "domain": str(domain),
+                "model_name": str(model_name),
+                "row_count": int(len(frame)),
+                "expected_calibration_error": float(ece),
+                "ambiguous_share": ambiguous_share,
+                "low_confidence_or_ambiguous_share": low_confidence_share,
+                "claim_status": "exploratory_taxonomy_review_required",
+                "notes": (
+                    "Domain reliability is generated from saved artifacts only and "
+                    "requires taxonomy-confidence review before confirmatory claims."
+                ),
+            }
+        )
+    if not rows:
+        return pd.DataFrame(
+            [
+                {
+                    "domain": "not_available",
+                    "model_name": "not_available",
+                    "row_count": 0,
+                    "expected_calibration_error": None,
+                    "claim_status": "not_available",
+                    "notes": "no domain/model rows were available",
+                }
+            ]
+        )
+    output = _ordered_models(pd.DataFrame(rows), config)
+    return output.drop(columns=["model_order"], errors="ignore").sort_values(
+        ["domain", "model_name"]
+    )
+
+
 def _limitations_table(
     raw_summary: dict[str, Any],
     walkforward_summary: dict[str, Any],
@@ -574,6 +676,14 @@ def _limitations_table(
         for limitation in summary.get("limitations", []):
             rows.append({"source": source, "limitation": str(limitation)})
     return pd.DataFrame(rows)
+
+
+def _modeling_panel_with_row_id(path: Path) -> pd.DataFrame:
+    panel = pd.read_parquet(path)
+    panel = panel.copy()
+    if "row_id" not in panel.columns:
+        panel.insert(0, "row_id", range(len(panel)))
+    return panel
 
 
 def _add_score_inference_columns(

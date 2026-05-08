@@ -415,6 +415,7 @@ uv run python scripts/make_tables.py --config configs/reporting.yaml
 The reporting config defaults to full artifact directories:
 
 ```text
+data/processed/modeling_panel.parquet
 data/artifacts/raw_baseline/
 data/artifacts/walkforward/
 data/artifacts/edge_sim/
@@ -434,6 +435,12 @@ They fail clearly if the full walk-forward, edge, inference, or decomposition
 artifacts are missing. For a deliberate draft run from smoke artifacts, pass
 `--artifact-run-label smoke` plus artifact-dir overrides including
 `--inference-dir` and `--decomposition-dir`.
+
+The manuscript figure set includes sample construction, overall and
+horizon-level reliability, exploratory domain reliability, calibration
+slope heatmaps, calibration-gain-over-time curves, score comparisons, edge
+friction sensitivity, and simulated PnL. Domain reliability outputs are
+exploratory until taxonomy confidence and ambiguity are manually reviewed.
 
 Run non-confirmatory robustness diagnostics from saved full-run artifacts:
 
@@ -491,7 +498,7 @@ data/artifacts/replication/small_sample/
 paper/replication/small_sample/
 ```
 
-Audit the saved Phase 2-14 artifact chain and final data semantics:
+Audit the saved Phase 2-16 artifact chain and final data semantics:
 
 ```bash
 uv run python scripts/audit_final_artifacts.py --config configs/final_audit.yaml
@@ -508,11 +515,37 @@ data/artifacts/final_audit/summary.json
 docs/audits/final_data_semantics.md
 ```
 
-The current expected verdict remains `PARTIAL`: hard invariants can pass and
-raw `close_time` is now retained separately from normalized `resolution_ts`,
-but report-only event-family overlaps, simulated edge outputs, missing quote
-depth, taxonomy ambiguity, and hierarchical-model experimental status remain
-final-deployment limitations tracked in `ROADMAP.md`.
+The current saved verdict is `PASS` for Phase 2-16 artifact invariants. The
+verdict does not upgrade edge outputs into executable trading evidence, and it
+does not remove taxonomy confidence/ambiguity review from the final claim
+boundaries.
+
+Build the Phase 17 final run registry and readiness audit:
+
+```bash
+uv run python scripts/build_final_run_registry.py --config configs/final_run.yaml
+```
+
+This writes:
+
+```text
+data/artifacts/final_run_registry/run_registry.json
+data/artifacts/final_run_registry/config_manifest.parquet
+data/artifacts/final_run_registry/artifact_manifest.parquet
+data/artifacts/final_run_registry/data_snapshot_manifest.parquet
+data/artifacts/final_run_registry/check_results.parquet
+data/artifacts/final_run_registry/configs_snapshot/
+data/artifacts/final_run_registry/summary.json
+docs/final_readiness_audit.md
+```
+
+The final readiness command records the full-run command sequence,
+small-sample replication command, git state, frozen config snapshot, config
+hashes, selected artifact hashes, raw-data snapshot metadata, and verification
+results. The CI type-check
+gate is the scoped mypy command recorded in `configs/final_run.yaml`; full
+`uv run mypy src` is not yet the CI gate because older PyArrow/Pandas-heavy
+modules need typing cleanup.
 
 Use the tests to verify the package imports and schema utilities:
 

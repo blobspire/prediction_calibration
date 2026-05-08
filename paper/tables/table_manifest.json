@@ -1,11 +1,13 @@
 {
   "effective_config": {
     "config_path": "configs/reporting.yaml",
-    "config_sha256": "cc174a02f59d23fb07f7ff0893abaa30578adad3fb3d28e68311e9d9defa7fb9",
+    "config_sha256": "1e5cb179b8ec565d9997e5b3e986bf6c019592bef8a3bb825c8d2ba6c540469f",
     "inputs": {
       "decomposition_artifact_dir": "data/artifacts/decomposition",
       "edge_artifact_dir": "data/artifacts/edge_sim",
       "inference_artifact_dir": "data/artifacts/inference",
+      "modeling_panel_path": "data/processed/modeling_panel.parquet",
+      "processed_dir": "data/processed",
       "raw_baseline_artifact_dir": "data/artifacts/raw_baseline",
       "walkforward_artifact_dir": "data/artifacts/walkforward"
     },
@@ -77,8 +79,13 @@
     "inference_paired_score_differences": "data/artifacts/inference/paired_score_differences.parquet",
     "inference_score_intervals": "data/artifacts/inference/score_intervals.parquet",
     "inference_summary": "data/artifacts/inference/summary.json",
+    "modeling_panel": "data/processed/modeling_panel.parquet",
+    "modeling_summary": "data/processed/modeling_panel_summary.json",
     "raw_baseline_reliability_bins": "data/artifacts/raw_baseline/reliability_bins.parquet",
     "raw_baseline_summary": "data/artifacts/raw_baseline/summary.json",
+    "snapshot_summary": "data/processed/contract_horizon_panel_summary.json",
+    "split_summary": "data/processed/walkforward_split_summary.json",
+    "taxonomy_summary": "data/processed/contract_horizon_taxonomy_summary.json",
     "walkforward_aggregate_metrics": "data/artifacts/walkforward/aggregate_metrics.parquet",
     "walkforward_fold_metrics": "data/artifacts/walkforward/fold_metrics.parquet",
     "walkforward_predictions": "data/artifacts/walkforward/predictions.parquet",
@@ -95,6 +102,11 @@
       "paper/tables/calibration_intercept_slope.csv",
       "paper/tables/calibration_intercept_slope.md",
       "paper/tables/calibration_intercept_slope.tex"
+    ],
+    "domain_reliability_exploratory": [
+      "paper/tables/domain_reliability_exploratory.csv",
+      "paper/tables/domain_reliability_exploratory.md",
+      "paper/tables/domain_reliability_exploratory.tex"
     ],
     "edge_capacity_summary": [
       "paper/tables/edge_capacity_summary.csv",
