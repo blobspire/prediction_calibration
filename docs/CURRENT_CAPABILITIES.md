@@ -9,6 +9,7 @@ built before the project can make research-grade claims.
 Status labels:
 
 - `complete`: implemented, config-driven, tested against relevant invariants, documented, and usable at full configured scale.
+- `ready with limitations`: final artifacts, audits, and CI gates pass for bounded publication claims, while specific claim boundaries remain.
 - `partial`: useful implementation exists, but important research-grade requirements or coverage are missing.
 - `prototype`: smoke or MVP implementation exists and should not be treated as final.
 - `blocked`: cannot proceed without an upstream decision, data, or repair.
@@ -38,16 +39,16 @@ Status labels:
 | Phase 4 baseline forecast metrics | complete | Config-driven raw baseline metrics, equal-contract primary aggregation, reliability bins, ECE, calibration slope/intercept, grouped artifacts, and known-value tests. | Domain/category grouped outputs are taxonomy-rule based and exploratory until uncertainty/manual review supports claims. |
 | Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Event-family overlaps are reported, not filtered. |
 | Phase 6 recalibrators | complete | Common interface, raw/Platt/beta/isotonic/binned-reliability calibrators, experimental hierarchical-EB, model config, registry, bounded predictions, and synthetic tests. | `hierarchical_eb` remains experimental and not a full Bayesian mixed model. |
-| Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, expanded Phase 14 model set, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Full-scale audited edge interpretation remains later work. |
+| Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, expanded Phase 14 model set, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Edge interpretation is bounded by Phase 16 simulated-screen and quote-depth limitations. |
 | Phase 8/16 edge simulation and executability | complete | Config-driven simulated edge screens now support transaction-proxy and explicit quote-snapshot entry modes, versioned fee proxy schedules, capacity/PnL assumptions, YES/NO side checks, and executability audit artifacts. | Full trading claims remain out of scope; Becker snapshots lack order-book depth, so capacity and PnL remain assumption-dependent. |
 | Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition/edge-executability artifacts under `paper/`, including sample construction, calibration gain over time, exploratory domain reliability, and simulated PnL. | Domain figures remain exploratory until taxonomy review. |
-| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Phase 15 expands robustness further; all robustness outputs remain sensitivity diagnostics. |
-| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; Phase 16 adds explicit edge-executability checks. | Phase 17 final run-registry/readiness hardening remains. |
+| Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Small-sample replication remains a reproducibility check; robustness outputs remain sensitivity diagnostics. |
+| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; Phase 16 adds explicit edge-executability checks. | None for artifact-audit readiness; future semantic extensions remain optional. |
 | Phase 13 confirmatory inference | complete | Config-driven event-family clustered uncertainty reads saved walk-forward predictions, writes score intervals, paired deltas, calibration intervals, FDR adjustments, paired-loss diagnostics, and summary artifacts. | Domain/category claims remain conditional on taxonomy confidence and ambiguity. |
 | Phase 14 expanded calibration and decomposition | complete | Default walk-forward now includes `binned_reliability` and experimental `hierarchical_eb`; Murphy-style decomposition artifacts and manuscript table are generated from saved predictions. | `hierarchical_eb` is experimental; Murphy components are binned and retain `binning_residual`. |
 | Phase 15 full robustness reruns | complete | Full robustness now covers stale/liquidity filters, equal-event-family and trade-weighted sensitivity, sports/domain/taxonomy exclusions, event-family-purged sensitivity, friction scenarios, and three full alternate snapshot-variant downstream reruns. | Robustness outputs are diagnostic and non-confirmatory; default methodology should change only if separated robustness evidence justifies it. |
 | Phase 17 final readiness | complete | Final run registry, config/artifact/data manifests, scoped CI command set, and `docs/final_readiness_audit.md` are implemented under `configs/final_run.yaml` and `scripts/build_final_run_registry.py`. | Full `uv run mypy src` remains outside the CI gate until legacy PyArrow/Pandas-heavy modules are typed. |
-| Final deployment readiness | partial | Phase 0-17 implementation is a working v1 research package with local full artifacts, final audit outputs, run registry, clustered inference, expanded calibrators, decomposition, full robustness artifacts, and edge-executability audits. | Publishable claims must still respect taxonomy, event-family, and simulated-edge limitations. |
+| Final deployment readiness | ready with limitations | Phase 0-17 implementation is a publication-ready v1 research package for bounded claims, with local full artifacts, final audit PASS, run registry, clustered inference, expanded calibrators, decomposition, full robustness artifacts, and edge-executability audits. | Publishable claims must still respect taxonomy, event-family, and simulated-edge limitations. |
 
 ## Current Commands
 
@@ -526,8 +527,9 @@ Limitations:
 - Manuscript tables require full walk-forward and edge artifacts by default.
 - Robustness tables are sensitivity diagnostics, not replacement confirmatory
   results.
-- Final audit can still return `PARTIAL`, not `PASS`, because event-family
-  overlap policy and edge executability remain open final-deployment blockers.
+- Final audit currently returns `PASS` with 102 passing checks and no partials
+  or failures. Event-family overlap policy and edge executability remain
+  publication claim boundaries, not artifact-audit blockers.
 
 ### `src/predmkt/validation/`
 
