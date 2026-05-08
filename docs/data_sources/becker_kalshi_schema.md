@@ -161,6 +161,27 @@ The cleaned contract output has one row per `contract_id`; the initial invariant
 - The interim `price_observations.parquet` remains a source-observation table, not the confirmatory analysis table. Contract-horizon sampling happens later.
 - The interim builder filters price observations to contracts identified in the cleaned resolved-binary contract table. This is an inclusion filter for the resolved-contract study population, not a contract-horizon analysis row definition.
 
+## Quote Observation Notes
+
+Phase 16 adds a separate quote-snapshot normalization command:
+
+```bash
+uv run python scripts/build_quote_observations.py --config configs/quotes.yaml
+```
+
+It reads immutable raw Kalshi market snapshots and writes
+`data/interim/kalshi/quote_observations.parquet`. Canonical quote fields are
+`contract_id`, `quote_ts`, `yes_bid`, `yes_ask`, `no_bid`, `no_ask`, raw cents
+columns, `quote_source`, and `depth_available`.
+
+Methodological assumptions:
+
+- `_fetched_at` is treated as the UTC quote-snapshot timestamp.
+- Bid/ask prices are explicit observed snapshot fields, not order-book depth.
+- `depth_available` is always `false` for the Becker public snapshots.
+- Edge simulations using these quotes remain simulated screens unless future
+  data supplies executable depth and capacity information.
+
 ## Snapshot Panel Notes
 
 The initial snapshot builder reads only cleaned interim data:

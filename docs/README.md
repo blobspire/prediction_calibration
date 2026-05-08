@@ -9,3 +9,4 @@ Current key docs:
 - `audits/final_data_semantics.md`: Phase 11 saved-artifact and data-semantics audit report.
 - `inference/clustered_uncertainty.md`: Phase 13 event-family clustered inference methodology, sparse-group handling, FDR scope, and limitations.
 - `calibration/phase14_methods.md`: Phase 14 binned reliability correction, experimental empirical-Bayes additive recalibrator, and Murphy decomposition methodology.
+- `edge/executability_methodology.md`: Phase 16 quote-snapshot, NO-side, fee, capacity, and simulated-PnL executability limitations.

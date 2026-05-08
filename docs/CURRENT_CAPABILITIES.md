@@ -39,14 +39,14 @@ Status labels:
 | Phase 5 walk-forward validation | complete | Config-driven monthly expanding splits by `forecast_ts`, one-month validation/test windows, split-integrity artifacts, and strict event-family overlap diagnostics. | Event-family overlaps are reported, not filtered. |
 | Phase 6 recalibrators | complete | Common interface, raw/Platt/beta/isotonic/binned-reliability calibrators, experimental hierarchical-EB, model config, registry, bounded predictions, and synthetic tests. | `hierarchical_eb` remains experimental and not a full Bayesian mixed model. |
 | Phase 7 walk-forward evaluation | complete | Config-driven raw-vs-recalibrated evaluation with identical test folds, label-available fit rows, expanded Phase 14 model set, fold/aggregate metrics, fit artifacts, config hash, git commit, and leakage diagnostics. | Full-scale audited edge interpretation remains later work. |
-| Phase 8 edge simulation | complete | Config-driven taker-only YES-side EV screens with fee-only, fee+spread, and fee+spread+slippage tiers, capital lockup, exclusions, and full artifacts. | Full trading claims remain out of scope; spread/slippage are proxy haircuts because executable quote/depth data is unavailable. |
-| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition artifacts under `paper/`. | Manuscript claims still need Phase 16-17 final gates. |
+| Phase 8/16 edge simulation and executability | complete | Config-driven simulated edge screens now support transaction-proxy and explicit quote-snapshot entry modes, versioned fee proxy schedules, capacity/PnL assumptions, YES/NO side checks, and executability audit artifacts. | Full trading claims remain out of scope; Becker snapshots lack order-book depth, so capacity and PnL remain assumption-dependent. |
+| Phase 9 plots/reports | complete | Config-driven manuscript figures and tables are generated from saved raw/walk-forward/edge/inference/decomposition/edge-executability artifacts under `paper/`. | Manuscript claims still need Phase 17 final readiness gate. |
 | Phase 10 replication/robustness | complete | Config-driven robustness diagnostics and deterministic small-sample replication command path are implemented with separated non-confirmatory outputs. | Phase 15 expands robustness further; all robustness outputs remain sensitivity diagnostics. |
-| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; current full audit is PARTIAL with 94 checks, 93 PASS, 1 PARTIAL, and 0 FAIL. | Phase 16-17 blockers remain: edge executability and final run-registry/readiness hardening. |
+| Phase 11 final scientific audit | complete | Config-driven saved-artifact audit writes inventory, checks, phase status, summary JSON, and `docs/audits/final_data_semantics.md`; Phase 16 adds explicit edge-executability checks. | Phase 17 final run-registry/readiness hardening remains. |
 | Phase 13 confirmatory inference | complete | Config-driven event-family clustered uncertainty reads saved walk-forward predictions, writes score intervals, paired deltas, calibration intervals, FDR adjustments, paired-loss diagnostics, and summary artifacts. | Domain/category claims remain conditional on taxonomy confidence and ambiguity. |
 | Phase 14 expanded calibration and decomposition | complete | Default walk-forward now includes `binned_reliability` and experimental `hierarchical_eb`; Murphy-style decomposition artifacts and manuscript table are generated from saved predictions. | `hierarchical_eb` is experimental; Murphy components are binned and retain `binning_residual`. |
 | Phase 15 full robustness reruns | complete | Full robustness now covers stale/liquidity filters, equal-event-family and trade-weighted sensitivity, sports/domain/taxonomy exclusions, event-family-purged sensitivity, friction scenarios, and three full alternate snapshot-variant downstream reruns. | Robustness outputs are diagnostic and non-confirmatory; default methodology should change only if separated robustness evidence justifies it. |
-| Final deployment readiness | partial | Phase 0-15 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, clustered inference, expanded calibrators, decomposition, and full robustness artifacts. | Phases 16-17 in `ROADMAP.md` remain required before final publishable claims. |
+| Final deployment readiness | partial | Phase 0-16 implementation is a working v1 research pipeline with full local artifacts, final audit outputs, clustered inference, expanded calibrators, decomposition, full robustness artifacts, and edge-executability audits. | Phase 17 in `ROADMAP.md` remains required before final publishable claims. |
 
 ## Current Commands
 
@@ -102,13 +102,14 @@ Run tests:
 uv run pytest
 ```
 
-Latest local verification used `uv run pytest` and passed `115 passed`.
-`uv run ruff check .` also passes. The Phase 14 requested `mypy` target passes
-for `src/predmkt/calibration`, `src/predmkt/metrics`,
-`src/predmkt/validation/walkforward.py`, and `src/predmkt/reports`. Full walk-forward, inference,
+Latest local verification used `uv run pytest` and passed `128 passed`.
+`uv run ruff check .` also passes. The Phase 16 targeted `mypy` check passes
+for `src/predmkt/io/kalshi_quotes.py`, `src/predmkt/edge`,
+`src/predmkt/reports/manuscript.py`, `src/predmkt/plots/manuscript.py`, and
+`src/predmkt/reports/final_audit.py`. Full walk-forward, inference,
 edge-simulation, Murphy decomposition, manuscript, robustness, small-sample
-replication, and final-audit artifacts exist under their configured output roots
-after the Phase 14 run.
+replication, quote, and final-audit artifacts exist under their configured
+output roots after the Phase 16 run.
 
 ## Config Registry
 
@@ -117,19 +118,20 @@ after the Phase 14 run.
 | `configs/sampling.yaml` | complete | Snapshot inputs/outputs, horizon grid, `close = resolution_ts - 1 minute`, horizon-specific staleness/VWAP windows, and snapshot method preference. |
 | `configs/taxonomy.yaml` | complete | Phase 12 ordered exact-event, event-family regex, prefix, title-keyword, default-unknown, confidence, ambiguity, sports flag, and fallback event-family rules. |
 | `configs/features.yaml` | partial | Modeling feature inputs/outputs, probability epsilon, 24h momentum/volatility windows, 7d liquidity window, missing-feature policy. |
+| `configs/quotes.yaml` | complete | Phase 16 immutable Becker/Kalshi market snapshot bid/ask normalization to interim quote observations with `_fetched_at` as UTC quote timestamp and depth unavailable. |
 | `configs/metrics.yaml` | complete | Raw baseline metric input/output paths, log-loss clipping epsilon, reliability bins, calibration fit settings, groupings, and equal-contract primary aggregation. |
 | `configs/figures.yaml` | partial | Raw-baseline diagnostic figure inputs, output directory, horizon order, aggregation mode, PNG/SVG formats, and DPI. |
 | `configs/raw_baseline_audit.yaml` | partial | Diagnostics for staleness, snapshot-method sensitivity, stricter close/1h variants, balanced panels, orientation, and close timestamp semantics. |
 | `configs/presentation.yaml` | partial | Slide-ready raw-baseline figure inputs, presentation output directory, horizon order, formats, DPI, and recorded pre-refinement comparison values. |
 | `configs/models.yaml` | complete | Recalibrator input/context columns, enabled raw/Platt/beta/isotonic/binned-reliability/experimental hierarchical-EB model names, prediction clipping epsilon, fit controls, metric settings, fit-label policy, and walk-forward artifact directory. |
 | `configs/validation.yaml` | complete | Forecast-time expanding walk-forward split inputs/outputs, monthly window settings, event-family fallback policy, and strict overlap leakage diagnostics. |
-| `configs/backtest.yaml` | complete | Conservative YES-side edge-screen inputs, fee proxy, spread/slippage haircuts, capital-lockup charge, optional liquidity/staleness filters, and artifact directory. |
+| `configs/backtest.yaml` | complete | Conservative edge-screen inputs, transaction-proxy or quote-snapshot execution mode, explicit YES/NO side policy, versioned fee proxy schedule, spread/slippage haircuts, capacity/PnL assumptions, optional liquidity/staleness/quote filters, and artifact directory. |
 | `configs/inference.yaml` | complete | Phase 13 saved-artifact inference inputs, event-family bootstrap unit, iteration count, confidence level, FDR alpha, sparse-group thresholds, groupings, and bucket definitions. |
 | `configs/decomposition.yaml` | complete | Phase 14 saved-prediction Murphy-style decomposition inputs, output directory, fixed-width bin settings, sparse-bin threshold, and grouping definitions. |
 | `configs/reporting.yaml` | complete | Manuscript figure/table input artifact dirs including inference and decomposition, `paper/` output dirs, model/horizon order, figure/table formats, metric scope, and explicit full-vs-smoke run label. |
 | `configs/robustness.yaml` | complete | Non-confirmatory robustness inputs/outputs, snapshot-method slices, liquidity filters, taxonomy-rule domain exclusions, friction scenarios, and small snapshot variants. |
 | `configs/replication_small.yaml` | complete | Deterministic small-sample replication paths, stage configs including inference/decomposition, limits, run label, and separate processed/artifact/paper output roots. |
-| `configs/final_audit.yaml` | complete | Phase 11+ saved-artifact and data-semantics audit inputs, Phase 13 inference checks, Phase 14 decomposition/experimental-label checks, expected horizons/models, full-run labels, hard-fail/partial severity rules, known partial limitations, and audit output paths. |
+| `configs/final_audit.yaml` | complete | Phase 11+ saved-artifact and data-semantics audit inputs, Phase 13 inference checks, Phase 14 decomposition/experimental-label checks, Phase 15 robustness checks, Phase 16 edge-executability checks, expected horizons/models, full-run labels, hard-fail/partial severity rules, known limitations, and audit output paths. |
 
 ## Local Data Artifacts
 
@@ -146,6 +148,8 @@ Interim outputs:
 
 - `data/interim/kalshi/contracts.parquet`: 7,314,375 cleaned resolved binary contracts.
 - `data/interim/kalshi/price_observations.parquet`: 67,724,365 cleaned price observations.
+- `data/interim/kalshi/quote_observations.parquet`: 7,682,445 Phase 16 explicit bid/ask quote snapshots from Becker market files.
+- `data/interim/kalshi/quote_observations_summary.json`
 - Contract exclusions: 368,070 rows.
 - Price-observation exclusions: 4,410,376 rows.
 
@@ -222,7 +226,12 @@ Processed outputs:
 - `data/artifacts/edge_sim/edge_candidates.parquet`: full edge-screen output with 8,867,016 candidate rows.
 - `data/artifacts/edge_sim/edge_summary_by_tier.parquet`
 - `data/artifacts/edge_sim/edge_summary_by_model_tier.parquet`
+- `data/artifacts/edge_sim/edge_summary_by_side_model_tier.parquet`
 - `data/artifacts/edge_sim/excluded_rows.parquet`
+- `data/artifacts/edge_sim/executability_audit.parquet`
+- `data/artifacts/edge_sim/fee_schedule_audit.parquet`
+- `data/artifacts/edge_sim/capacity_summary.parquet`
+- `data/artifacts/edge_sim/simulated_pnl.parquet`
 - `data/artifacts/edge_sim/summary.json`
 - `paper/figures/figure_manifest.json`
 - `paper/figures/manuscript_*.{png,svg,pdf}`
@@ -257,10 +266,10 @@ Processed outputs:
 - `paper/replication/small_sample/tables/*.{csv,md,tex}`
 - `data/artifacts/final_audit/artifact_inventory.parquet`
 - `data/artifacts/final_audit/audit_checks.parquet`: current full audit has
-  87 checks, 84 PASS, 3 PARTIAL, and 0 FAIL.
+  102 checks, 102 PASS, 0 PARTIAL, and 0 FAIL.
 - `data/artifacts/final_audit/phase_status.parquet`
 - `data/artifacts/final_audit/summary.json`: current overall status is
-  `PARTIAL`.
+  `PASS`.
 - `docs/audits/final_data_semantics.md`
 
 Smoke outputs also exist under `data/processed/*_smoke*`; they are verification artifacts only and not confirmatory outputs.
@@ -569,26 +578,38 @@ Limitations:
 
 ### `src/predmkt/edge/`
 
-Status: complete for Phase 8 conservative expected-value screens.
+Status: complete for Phase 8 conservative expected-value screens and Phase 16
+executability audit support.
 
 Capabilities:
 
 - Loads edge-simulation assumptions from `configs/backtest.yaml`.
 - Reads walk-forward predictions and joins modeling-panel metadata by reconstructed `row_id`.
-- Screens taker-only YES-side candidates without synthetic NO complement trades.
-- Computes configurable Kalshi-style fee proxy, spread haircut, slippage haircut, and annualized capital-lockup charge.
+- Screens configured YES and, in quote mode only, explicit NO-side candidates
+  without synthetic NO complement prices.
+- Supports transaction snapshot proxies and quote-snapshot proxies built from
+  Becker `yes_bid`/`yes_ask`/`no_bid`/`no_ask` fields.
+- Computes configurable versioned Kalshi-style fee proxy, spread haircut,
+  slippage haircut, fixed capacity assumption, simulated PnL, and annualized
+  capital-lockup charge.
 - Emits fee-only, fee+spread, and fee+spread+slippage tiers for comparison.
 - Records gross edge, net edge, threshold flags, cost components, and simulated realized net per $1 payout contract.
-- Writes candidate, tier-summary, model-tier-summary, exclusion, and summary artifacts.
+- Writes candidate, tier-summary, model-tier-summary, side/model/tier summary,
+  exclusion, executability-audit, fee-schedule, capacity, simulated-PnL, and
+  summary artifacts.
 - Validates nonnegative cost assumptions, probability bounds, timestamp joins, and prediction/panel key consistency.
 
 Limitations:
 
 - Outputs are simulated EV screens, not executable profits or trade recommendations.
-- Entry prices are transaction snapshot proxies; no historical executable bid/ask or order-book depth is available.
-- Fee formula is a configurable proxy, not a versioned historical exchange billing audit.
+- Entry prices are transaction or quote-snapshot proxies; quote snapshots do
+  not prove executable fills.
+- Becker quote snapshots do not include order-book depth or queue position.
+- Fee schedules are configurable proxy assumptions unless a source note
+  documents a historical billing regime.
 - Spread/slippage are assumption haircuts rather than observed execution costs.
-- NO-side opportunities are intentionally not simulated until explicit NO-side executable prices are available.
+- NO-side opportunities are allowed only from explicit observed NO asks in quote
+  mode; no NO prices are synthesized from complementarity.
 
 ## Test Coverage Registry
 
@@ -650,8 +671,8 @@ Cannot yet claim:
 - Event-family leakage safety under a primary exclusion policy; current
   confirmatory overlaps are reported, uncertainty is clustered by event family,
   and Phase 15 adds event-family-purged sensitivity diagnostics.
-- Final manuscript claims from figures/tables until Phase 16-17 blockers are
-  resolved or explicitly scoped out.
+- Final manuscript claims from figures/tables until Phase 17 reproducibility
+  and readiness hardening is complete.
 
 Required next build steps:
 
@@ -659,14 +680,12 @@ Required next build steps:
 2. Treat Phase 15 robustness outputs as diagnostic sensitivity checks; do not
    promote threshold or snapshot-policy changes without separated evidence that
    the default is materially fragile.
-3. Upgrade edge executability only if quote/depth, observed NO-side prices, or
-   documented fee-regime data become available.
-4. Add a final reproducibility/run-registry gate before any publishable claims.
+3. Add a final reproducibility/run-registry gate before any publishable claims.
 
 ## Current Phase Recommendation
 
-Next recommended task: start ROADMAP Phase 16 only if quote/depth, observed
-NO-side prices, or documented historical fee-regime data are available;
-otherwise proceed to Phase 17 reproducibility/readiness hardening.
+Next recommended task: proceed to Phase 17 reproducibility/readiness hardening.
+Phase 16 adds quote-snapshot and NO-side support where explicit asks exist, but
+edge outputs remain simulated screens because order-book depth is unavailable.
 
 Phase 4 now starts from `data/processed/modeling_panel.parquet`, uses `raw_probability` and `observed_outcome`, preserves one row per `contract_id x horizon_name`, and makes aggregation explicitly equal-contract by default. Domain/category slicing remains exploratory until taxonomy rules are added and audited.

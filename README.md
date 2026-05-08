@@ -347,7 +347,25 @@ uv run python scripts/run_edge_sim.py \
   --artifact-dir data/artifacts/edge_sim_smoke
 ```
 
-Run conservative fee-aware YES-side edge screens:
+Build Phase 16 quote observations from immutable Becker/Kalshi market snapshots:
+
+```bash
+uv run python scripts/build_quote_observations.py --config configs/quotes.yaml
+```
+
+This writes:
+
+```text
+data/interim/kalshi/quote_observations.parquet
+data/interim/kalshi/quote_observation_exclusion_summary.parquet
+data/interim/kalshi/quote_observations_summary.json
+```
+
+`_fetched_at` is treated as the UTC quote-snapshot timestamp. These snapshots
+include explicit YES/NO bid/ask fields, but they do not include order-book depth
+or executable size.
+
+Run conservative fee-aware simulated edge screens:
 
 ```bash
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
@@ -368,17 +386,24 @@ It writes:
 data/artifacts/edge_sim/edge_candidates.parquet
 data/artifacts/edge_sim/edge_summary_by_tier.parquet
 data/artifacts/edge_sim/edge_summary_by_model_tier.parquet
+data/artifacts/edge_sim/edge_summary_by_side_model_tier.parquet
 data/artifacts/edge_sim/excluded_rows.parquet
+data/artifacts/edge_sim/executability_audit.parquet
+data/artifacts/edge_sim/fee_schedule_audit.parquet
+data/artifacts/edge_sim/capacity_summary.parquet
+data/artifacts/edge_sim/simulated_pnl.parquet
 data/artifacts/edge_sim/summary.json
 ```
 
 These are simulated expected-value screens, not executable trading profits or
-trade recommendations. The first implementation is taker-only and YES-side
-only. It uses a configurable Kalshi-style fee proxy, a 5% annual capital-lockup
-charge by default, and conservative spread/slippage haircuts because the current
-public Becker/Kalshi-derived panel does not include historical executable
-bid/ask quotes or order-book depth. NO-side candidates are not synthesized from
-`1 - YES price`.
+trade recommendations. The default `configs/backtest.yaml` still uses the
+transaction-price snapshot proxy. `quote_snapshot_proxy` mode is available for
+explicit YES/NO asks from `quote_observations.parquet`, but quote-snapshot
+outputs remain non-executable because there is no order-book depth. NO-side
+candidates require explicit observed NO asks; the simulator never synthesizes a
+NO price from `1 - YES price`. Fee schedules, capacity, and PnL are
+config-driven assumptions and are labeled as proxies unless documented
+historical execution data is supplied.
 
 Create manuscript-ready figures and tables from saved full-run artifacts:
 

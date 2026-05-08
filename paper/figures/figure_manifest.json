@@ -63,6 +63,11 @@
       "paper/figures/manuscript_edge_friction_sensitivity.svg",
       "paper/figures/manuscript_edge_friction_sensitivity.pdf"
     ],
+    "edge_simulated_pnl": [
+      "paper/figures/manuscript_edge_simulated_pnl.png",
+      "paper/figures/manuscript_edge_simulated_pnl.svg",
+      "paper/figures/manuscript_edge_simulated_pnl.pdf"
+    ],
     "reliability_by_horizon_model": [
       "paper/figures/manuscript_reliability_by_horizon_model.png",
       "paper/figures/manuscript_reliability_by_horizon_model.svg",
@@ -83,6 +88,7 @@
     "Manuscript outputs consume saved result artifacts and do not recompute core models.",
     "Domain/category manuscript outputs remain exploratory because taxonomy coverage includes lower-confidence title rules plus ambiguous and unknown rows.",
     "Edge outputs are simulated expected-value screens, not executable trading profits.",
+    "Phase 16 quote snapshots do not include order-book depth, so capacity and PnL remain assumption-dependent.",
     "Score intervals and p-values use event-family clustered inference artifacts.",
     "Murphy decomposition uses binned saved predictions and reports the binning residual.",
     "Artifact run label is full."
@@ -91,8 +97,13 @@
     "decomposition_murphy_bins": "data/artifacts/decomposition/murphy_bins.parquet",
     "decomposition_murphy_decomposition": "data/artifacts/decomposition/murphy_decomposition.parquet",
     "decomposition_summary": "data/artifacts/decomposition/summary.json",
+    "edge_capacity_summary": "data/artifacts/edge_sim/capacity_summary.parquet",
+    "edge_executability_audit": "data/artifacts/edge_sim/executability_audit.parquet",
+    "edge_fee_schedule_audit": "data/artifacts/edge_sim/fee_schedule_audit.parquet",
+    "edge_simulated_pnl": "data/artifacts/edge_sim/simulated_pnl.parquet",
     "edge_summary": "data/artifacts/edge_sim/summary.json",
     "edge_summary_by_model_tier": "data/artifacts/edge_sim/edge_summary_by_model_tier.parquet",
+    "edge_summary_by_side_model_tier": "data/artifacts/edge_sim/edge_summary_by_side_model_tier.parquet",
     "edge_summary_by_tier": "data/artifacts/edge_sim/edge_summary_by_tier.parquet",
     "inference_calibration_intervals": "data/artifacts/inference/calibration_intervals.parquet",
     "inference_multiple_comparison_adjustments": "data/artifacts/inference/multiple_comparison_adjustments.parquet",

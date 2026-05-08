@@ -364,6 +364,11 @@ Move robustness beyond saved-artifact slices and small-sample variants.
 
 ## Phase 16 — Edge executability upgrade
 
+Status: implemented as a simulated-screen executability audit layer. The code
+supports explicit quote-snapshot YES/NO asks and versioned fee/capacity/PnL
+artifacts, but executable-profit claims remain unsupported without order-book
+depth.
+
 ### Goal
 Distinguish conservative expected-value screens from executable trading
 evidence.

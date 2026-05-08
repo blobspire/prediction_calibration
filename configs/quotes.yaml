@@ -1,0 +1,12 @@
+inputs:
+  markets_dir: data/raw/becker_prediction_market_analysis/data/kalshi/markets
+
+outputs:
+  quote_observations_path: data/interim/kalshi/quote_observations.parquet
+  exclusion_summary_path: data/interim/kalshi/quote_observation_exclusion_summary.parquet
+  summary_path: data/interim/kalshi/quote_observations_summary.json
+
+quotes:
+  quote_source: becker_market_snapshot
+  fetched_at_timezone: UTC
+  limit_rows:

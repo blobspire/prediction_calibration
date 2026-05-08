@@ -63,6 +63,7 @@ def make_manuscript_figures(config: ReportingConfig) -> ManuscriptFigureSummary:
     aggregate = pd.read_parquet(sources["walkforward_aggregate_metrics"])
     raw_reliability = pd.read_parquet(sources["raw_baseline_reliability_bins"])
     edge_summary = pd.read_parquet(sources["edge_summary_by_model_tier"])
+    simulated_pnl = pd.read_parquet(sources["edge_simulated_pnl"])
 
     figure_paths = {
         "reliability_overall": _save_figure(
@@ -89,6 +90,11 @@ def make_manuscript_figures(config: ReportingConfig) -> ManuscriptFigureSummary:
             _edge_friction_sensitivity_figure(edge_summary, config),
             config,
             "manuscript_edge_friction_sensitivity",
+        ),
+        "edge_simulated_pnl": _save_figure(
+            _edge_simulated_pnl_figure(simulated_pnl, config),
+            config,
+            "manuscript_edge_simulated_pnl",
         ),
     }
 
@@ -275,6 +281,56 @@ def _edge_friction_sensitivity_figure(
         ax.tick_params(axis="x", rotation=25)
         ax.legend(frameon=False)
     fig.suptitle("Edge Sensitivity to Conservative Friction Tiers", fontsize=14, fontweight="bold")
+    return fig
+
+
+def _edge_simulated_pnl_figure(
+    simulated_pnl: pd.DataFrame,
+    config: ReportingConfig,
+) -> Figure:
+    fig, ax = plt.subplots(figsize=(8.8, 4.4), constrained_layout=True)
+    if simulated_pnl.empty:
+        ax.text(
+            0.5,
+            0.5,
+            "No threshold-passing simulated edge rows",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+        ax.set_axis_off()
+        return fig
+    rows = simulated_pnl.copy()
+    rows["forecast_ts"] = pd.to_datetime(rows["forecast_ts"], utc=True, errors="coerce")
+    models = [model for model in config.model_order if model in set(rows["model_name"])]
+    preferred_tier = "fee_spread_slippage"
+    if preferred_tier not in set(rows["friction_tier"]):
+        preferred_tier = str(rows["friction_tier"].iloc[0])
+    for model_name in models:
+        frame = rows[
+            (rows["model_name"] == model_name)
+            & (rows["friction_tier"] == preferred_tier)
+        ].sort_values(["forecast_ts", "row_id"])
+        if frame.empty:
+            continue
+        ax.plot(
+            frame["forecast_ts"],
+            frame["cumulative_simulated_pnl"].astype(float),
+            label=model_name,
+            color=COLORS.get(model_name),
+            linewidth=1.4,
+        )
+    ax.axhline(0.0, color=COLORS["ink"], linewidth=0.9)
+    ax.set_title(f"Simulated Cumulative PnL ({preferred_tier})")
+    ax.set_ylabel("Simulated net per configured contract size")
+    ax.set_xlabel("Forecast timestamp")
+    ax.grid(axis="y", color=COLORS["light"], linewidth=0.8)
+    ax.legend(frameon=False)
+    fig.suptitle(
+        "Assumption-Dependent Edge Screen PnL",
+        fontsize=14,
+        fontweight="bold",
+    )
     return fig
 
 

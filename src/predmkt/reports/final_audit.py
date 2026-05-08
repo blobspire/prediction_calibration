@@ -24,6 +24,7 @@ class FinalAuditConfig:
     interim_summary_path: Path
     interim_contracts_path: Path
     interim_price_observations_path: Path
+    quote_observations_path: Path | None
     contract_exclusion_summary_path: Path
     price_observation_exclusion_summary_path: Path
     snapshot_panel_path: Path
@@ -93,6 +94,11 @@ def load_final_audit_config(path: Path) -> FinalAuditConfig:
         interim_summary_path=Path(_required(inputs, "interim_summary_path")),
         interim_contracts_path=Path(_required(inputs, "interim_contracts_path")),
         interim_price_observations_path=Path(_required(inputs, "interim_price_observations_path")),
+        quote_observations_path=(
+            Path(inputs["quote_observations_path"])
+            if inputs.get("quote_observations_path") not in (None, "")
+            else None
+        ),
         contract_exclusion_summary_path=Path(_required(inputs, "contract_exclusion_summary_path")),
         price_observation_exclusion_summary_path=Path(
             _required(inputs, "price_observation_exclusion_summary_path")
@@ -186,9 +192,9 @@ def build_final_audit(config: FinalAuditConfig) -> FinalAuditSummary:
             "refit models, or change methodology.",
             "A PARTIAL verdict can be acceptable for Phase 11 when hard invariants pass but "
             "known semantic limitations remain.",
-            "Final deployment still requires later roadmap phases for edge executability and "
-            "run-registry hardening; taxonomy/domain claims remain conditional on confidence "
-            "and ambiguity review.",
+            "Final deployment still requires Phase 17 run-registry/readiness hardening; "
+            "taxonomy/domain claims remain conditional on confidence and ambiguity review, "
+            "and edge outputs remain simulated screens without order-book depth.",
         ],
     )
     paths["summary"].write_text(
@@ -924,13 +930,63 @@ def _audit_edge(config: FinalAuditConfig) -> list[dict[str, Any]]:
     summary = _read_json(config.edge_dir / "summary.json")
     candidates = pd.read_parquet(
         config.edge_dir / "edge_candidates.parquet",
-        columns=["trade_side", "effective_cost", "net_edge"],
+        columns=[
+            column
+            for column in (
+                "trade_side",
+                "effective_cost",
+                "net_edge",
+                "entry_price_source",
+                "quote_ts",
+                "forecast_ts",
+                "capacity_source",
+            )
+            if column in _parquet_columns(config.edge_dir / "edge_candidates.parquet")
+        ],
     )
     trade_side = candidates["trade_side"].astype(str).str.upper()
-    bad_side = int((trade_side != config.expected_edge_trade_side).sum())
+    allowed_sides = (
+        {"YES", "NO"}
+        if config.expected_edge_trade_side in {"YES_AND_NO", "BOTH"}
+        else {config.expected_edge_trade_side}
+    )
+    bad_side = int((~trade_side.isin(allowed_sides)).sum())
     bad_cost = int((pd.to_numeric(candidates["effective_cost"], errors="coerce") < 0).sum())
+    no_synthetic_count = 0
+    if "entry_price_source" in candidates.columns:
+        no_synthetic_count = int(
+            (
+                (trade_side == "NO")
+                & (candidates["entry_price_source"] != "explicit_no_ask_quote")
+            ).sum()
+        )
+    future_quote_count = 0
+    if {"quote_ts", "forecast_ts"} <= set(candidates.columns):
+        quote_ts = pd.to_datetime(candidates["quote_ts"], utc=True, errors="coerce")
+        forecast_ts = pd.to_datetime(candidates["forecast_ts"], utc=True, errors="coerce")
+        future_quote_count = int((quote_ts > forecast_ts).sum())
     limitations = " ".join(str(item).lower() for item in summary.get("limitations", []))
     mentions_simulated = "simulated" in limitations and "not executable" in limitations
+    executability = pd.read_parquet(config.edge_dir / "executability_audit.parquet")
+    fee_schedule = pd.read_parquet(config.edge_dir / "fee_schedule_audit.parquet")
+    capacity = pd.read_parquet(config.edge_dir / "capacity_summary.parquet")
+    pnl = pd.read_parquet(config.edge_dir / "simulated_pnl.parquet")
+    executable_claim = bool(
+        executability.get("executable_profit_evidence", pd.Series([False])).fillna(False).any()
+    )
+    depth_available = bool(
+        executability.get("quote_depth_available", pd.Series([False])).fillna(False).any()
+    )
+    capacity_labeled = (
+        capacity.empty
+        or "capacity_source" in capacity.columns
+        and capacity["capacity_source"].astype(str).str.len().gt(0).all()
+    )
+    pnl_labeled = (
+        pnl.empty
+        or "pnl_label" in pnl.columns
+        and (pnl["pnl_label"].astype(str) == "simulated_assumption_dependent").all()
+    )
     return [
         _check(
             "phase_8",
@@ -945,13 +1001,28 @@ def _audit_edge(config: FinalAuditConfig) -> list[dict[str, Any]]:
             "edge_yes_only",
             "PASS"
             if bad_side == 0
-            and summary.get("trade_side") == "yes_only"
             and summary.get("effective_config", {}).get("screen", {}).get("allow_synthetic_no")
             is False
             else "FAIL",
-            "edge candidates are YES-only and synthetic NO is disabled",
+            "edge candidates use supported sides and synthetic NO is disabled",
             "edge candidates include unsupported trade sides or synthetic NO is enabled",
             {"bad_side_count": bad_side, "trade_side": summary.get("trade_side")},
+        ),
+        _check(
+            "phase_16",
+            "edge_no_synthetic_no_prices",
+            "PASS" if no_synthetic_count == 0 else "FAIL",
+            "NO-side candidates use explicit observed NO ask quotes when present",
+            "NO-side candidates include synthetic or unsupported price sources",
+            {"synthetic_no_count": no_synthetic_count},
+        ),
+        _check(
+            "phase_16",
+            "edge_no_future_quotes",
+            "PASS" if future_quote_count == 0 else "FAIL",
+            "quote-snapshot candidates use quote_ts <= forecast_ts",
+            "edge candidates include future quote timestamps",
+            {"future_quote_count": future_quote_count},
         ),
         _check(
             "phase_8",
@@ -970,12 +1041,36 @@ def _audit_edge(config: FinalAuditConfig) -> list[dict[str, Any]]:
             {"limitations": summary.get("limitations", [])},
         ),
         _check(
-            "phase_8",
+            "phase_16",
+            "edge_phase16_artifacts_present",
+            "PASS"
+            if not executability.empty
+            and not fee_schedule.empty
+            and capacity_labeled
+            and pnl_labeled
+            else "FAIL",
+            "Phase 16 executability, fee, capacity, and simulated PnL artifacts are present",
+            "Phase 16 edge executability artifacts are missing or unlabeled",
+            {
+                "executability_rows": len(executability),
+                "fee_schedule_rows": len(fee_schedule),
+                "capacity_rows": len(capacity),
+                "pnl_rows": len(pnl),
+            },
+        ),
+        _check(
+            "phase_16",
             "edge_executability_limitations",
-            "PARTIAL",
-            "edge uses executable quote/depth data",
-            "edge remains a simulated screen using transaction-price proxies and assumed frictions",
-            {"known_limitation": "edge_outputs_simulated_not_executable"},
+            "PASS"
+            if mentions_simulated and not executable_claim and not depth_available
+            else "FAIL",
+            "edge executability is audited and non-executable limitations are explicit",
+            "edge artifacts overstate executability or omit quote/depth limitations",
+            {
+                "quote_depth_available": depth_available,
+                "executable_profit_evidence": executable_claim,
+                "known_limitation": "quote_depth_unavailable",
+            },
         ),
     ]
 
@@ -1456,7 +1551,9 @@ def _semantics_markdown(
         "`hierarchical_eb` empirical-Bayes additive recalibrator.",
         "- Murphy decomposition is reported from fixed-width bins, with binning residuals "
         "retained rather than treated as exact Brier identities.",
-        "- Edge outputs remain simulated expected-value screens, not executable trading profits.",
+        "- Phase 16 audits edge executability explicitly. Edge outputs remain simulated "
+        "expected-value screens, not executable trading profits, because quote snapshots "
+        "lack order-book depth and capacity is assumption-dependent.",
         "",
         "## Phase Status",
         "",
@@ -1542,6 +1639,10 @@ def _configured_artifacts(config: FinalAuditConfig) -> dict[str, Path]:
         "walkforward_calibrator_fits": config.walkforward_dir / "calibrator_fits.parquet",
         "edge_summary": config.edge_dir / "summary.json",
         "edge_candidates": config.edge_dir / "edge_candidates.parquet",
+        "edge_executability_audit": config.edge_dir / "executability_audit.parquet",
+        "edge_fee_schedule_audit": config.edge_dir / "fee_schedule_audit.parquet",
+        "edge_capacity_summary": config.edge_dir / "capacity_summary.parquet",
+        "edge_simulated_pnl": config.edge_dir / "simulated_pnl.parquet",
         "inference_summary": config.inference_dir / "summary.json",
         "inference_score_intervals": config.inference_dir / "score_intervals.parquet",
         "inference_paired_score_differences": (
@@ -1565,6 +1666,8 @@ def _configured_artifacts(config: FinalAuditConfig) -> dict[str, Path]:
     }
     if config.raw_repo_path is not None:
         artifacts["raw_repo_path"] = config.raw_repo_path
+    if config.quote_observations_path is not None:
+        artifacts["quote_observations"] = config.quote_observations_path
     return artifacts
 
 
@@ -1617,4 +1720,6 @@ def _normalize_trade_side(value: Any) -> str:
         return "YES"
     if text in {"NO", "NO_ONLY"}:
         return "NO"
+    if text in {"YES_AND_NO", "BOTH", "YES_NO"}:
+        return "YES_AND_NO"
     return text

@@ -12,10 +12,11 @@
 | walkforward | Event-family overlaps are reported but not filtered; Phase 12 family IDs are audited regex/event fallbacks, with clustered inference deferred to Phase 13. |
 | walkforward | Metrics are equal-contract over contract-horizon test rows; no trade weighting or edge simulation is implemented here. |
 | edge_simulation | Edge outputs are simulated expected-value screens, not executable trading profits or trade recommendations. |
-| edge_simulation | The first edge layer is YES-side only; NO trades are not synthesized from 1 minus the YES price. |
-| edge_simulation | Entry prices are snapshot-based transaction proxies because historical executable bid/ask quotes and order-book depth are unavailable. |
-| edge_simulation | The taker fee is a configurable Kalshi-style proxy, not a versioned audit of exact historical exchange billing. |
+| edge_simulation | The first edge layer is YES-side only; NO trades are not synthesized from 1 minus the YES price. When NO-side screening is enabled, it requires an explicit observed NO ask quote. |
+| edge_simulation | Entry prices are transaction or quote-snapshot proxies, not guaranteed executable fills. |
+| edge_simulation | The default taker fee schedule is a configurable Kalshi-style proxy, not a versioned audit of exact historical exchange billing. |
 | edge_simulation | Spread and slippage tiers are conservative haircuts, not observed execution costs. |
+| edge_simulation | Capacity and PnL use fixed configurable contract-size assumptions because the public Becker/Kalshi snapshots do not include order-book depth. |
 | edge_simulation | Summaries are equal contract-horizon prediction rows and do not use trade weights. |
 | inference | Inference consumes saved walk-forward prediction artifacts and does not refit calibrators or rebuild data. |
 | inference | Confirmatory intervals resample audited event-family clusters, not iid rows or trades. |

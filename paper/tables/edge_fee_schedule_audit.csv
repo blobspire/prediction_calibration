@@ -1,0 +1,2 @@
+fee_schedule_id,start_date,end_date,formula,fee_rate,source_status,candidate_row_count,source_note
+kalshi_proxy_default,1900-01-01,,kalshi_proxy,0.07,proxy_assumption,8867016,Configurable fee proxy; not a documented historical exchange billing audit.

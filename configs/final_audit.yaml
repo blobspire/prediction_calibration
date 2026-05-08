@@ -3,6 +3,7 @@ inputs:
   interim_summary_path: data/interim/kalshi/summary.json
   interim_contracts_path: data/interim/kalshi/contracts.parquet
   interim_price_observations_path: data/interim/kalshi/price_observations.parquet
+  quote_observations_path: data/interim/kalshi/quote_observations.parquet
   contract_exclusion_summary_path: data/interim/kalshi/contract_exclusion_summary.parquet
   price_observation_exclusion_summary_path: data/interim/kalshi/price_observation_exclusion_summary.parquet
   snapshot_panel_path: data/processed/contract_horizon_panel.parquet
@@ -52,7 +53,10 @@ audit:
       - missing_phase14_decomposition_artifacts
       - hierarchical_model_not_labeled_experimental
       - missing_phase15_robustness_artifacts
+      - missing_phase16_executability_artifacts
       - unlabeled_trade_weighted_confirmatory_output
+      - synthetic_no_edge_prices
+      - future_quote_edge_prices
       - missing_event_family_purged_sensitivity
     partial_allowed:
       - taxonomy_low_confidence_ambiguous_unknown_rows

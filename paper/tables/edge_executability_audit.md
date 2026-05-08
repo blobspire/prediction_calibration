@@ -1,0 +1,3 @@
+| execution_mode | quote_mode_used | input_prediction_rows | rows_with_attached_quote | candidate_rows | no_side_candidate_rows | synthetic_no_candidate_rows | future_quote_candidate_rows | quote_depth_available | capacity_source | executable_profit_evidence | screen_language | limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| transaction_proxy | False | 2955672 | 0 | 8867016 | 0 | 0 | 0 | False | fixed_config_assumption_no_order_book_depth | False | simulated_expected_value_screen | Quote snapshots do not include order-book depth; outputs remain simulated expected-value screens. |

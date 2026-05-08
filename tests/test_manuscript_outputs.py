@@ -38,6 +38,7 @@ def test_make_manuscript_figures_writes_outputs(tmp_path: Path) -> None:
         "calibration_slope_heatmap",
         "score_comparison",
         "edge_friction_sensitivity",
+        "edge_simulated_pnl",
     }
     assert (tmp_path / "figures" / "figure_manifest.json").exists()
     for paths in summary.figure_paths.values():
@@ -58,6 +59,10 @@ def test_make_manuscript_tables_writes_outputs(tmp_path: Path) -> None:
         "horizon_score_comparison",
         "calibration_intercept_slope",
         "edge_friction_sensitivity",
+        "edge_executability_audit",
+        "edge_fee_schedule_audit",
+        "edge_capacity_summary",
+        "edge_simulated_pnl_summary",
         "murphy_decomposition",
         "artifact_source_limitations",
     }
@@ -81,6 +86,8 @@ def test_make_manuscript_tables_writes_outputs(tmp_path: Path) -> None:
     assert {"reliability", "resolution", "uncertainty", "binning_residual"} <= set(
         decomposition.columns
     )
+    executability = pd.read_csv(tmp_path / "tables" / "edge_executability_audit.csv")
+    assert "quote_depth_available" in executability.columns
 
 
 def test_manuscript_scripts_support_overrides(tmp_path: Path) -> None:
@@ -218,6 +225,14 @@ def _write_artifacts(tmp_path: Path) -> None:
         edge_dir / "edge_summary_by_model_tier.parquet",
         index=False,
     )
+    _edge_summary_by_side_model_tier().to_parquet(
+        edge_dir / "edge_summary_by_side_model_tier.parquet",
+        index=False,
+    )
+    _executability_audit().to_parquet(edge_dir / "executability_audit.parquet", index=False)
+    _fee_schedule_audit().to_parquet(edge_dir / "fee_schedule_audit.parquet", index=False)
+    _capacity_summary().to_parquet(edge_dir / "capacity_summary.parquet", index=False)
+    _simulated_pnl().to_parquet(edge_dir / "simulated_pnl.parquet", index=False)
     _write_inference(inference_dir)
     _write_decomposition(decomposition_dir)
 
@@ -362,6 +377,84 @@ def _edge_summary_by_model_tier() -> pd.DataFrame:
                     "median_net_edge": 0.0 + adjustment,
                     "selected_mean_net_edge": 0.04 + adjustment,
                     "selected_mean_simulated_realized_net_per_contract": 0.02 + adjustment,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _edge_summary_by_side_model_tier() -> pd.DataFrame:
+    frame = _edge_summary_by_model_tier().copy()
+    frame.insert(0, "trade_side", "YES")
+    return frame
+
+
+def _executability_audit() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "execution_mode": ["transaction_proxy"],
+            "quote_mode_used": [False],
+            "input_prediction_rows": [40],
+            "rows_with_attached_quote": [0],
+            "candidate_rows": [120],
+            "no_side_candidate_rows": [0],
+            "synthetic_no_candidate_rows": [0],
+            "future_quote_candidate_rows": [0],
+            "quote_depth_available": [False],
+            "capacity_source": ["fixed_config_assumption_no_order_book_depth"],
+            "executable_profit_evidence": [False],
+            "screen_language": ["simulated_expected_value_screen"],
+            "limitations": ["simulated screen without order-book depth"],
+        }
+    )
+
+
+def _fee_schedule_audit() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "fee_schedule_id": ["kalshi_proxy_default"],
+            "start_date": ["1900-01-01"],
+            "end_date": [None],
+            "formula": ["kalshi_proxy"],
+            "fee_rate": [0.07],
+            "source_status": ["proxy_assumption"],
+            "source_note": ["fixture fee proxy"],
+            "candidate_row_count": [120],
+        }
+    )
+
+
+def _capacity_summary() -> pd.DataFrame:
+    frame = _edge_summary_by_side_model_tier()[
+        [
+            "trade_side",
+            "model_name",
+            "friction_tier",
+            "candidate_row_count",
+            "selected_row_count",
+        ]
+    ].copy()
+    frame["assumed_contracts"] = 1.0
+    frame["capacity_source"] = "fixed_config_assumption_no_order_book_depth"
+    frame["selected_total_simulated_realized_net"] = 0.1
+    frame["selected_total_effective_cost"] = 1.0
+    return frame
+
+
+def _simulated_pnl() -> pd.DataFrame:
+    rows = []
+    for model_name in ("raw", "platt"):
+        for index in range(3):
+            rows.append(
+                {
+                    "model_name": model_name,
+                    "friction_tier": "fee_spread_slippage",
+                    "trade_side": "YES",
+                    "forecast_ts": pd.Timestamp("2024-01-01", tz="UTC")
+                    + pd.Timedelta(days=index),
+                    "row_id": index,
+                    "simulated_realized_net_total": 0.1 - 0.02 * index,
+                    "cumulative_simulated_pnl": 0.1 + 0.08 * index,
+                    "pnl_label": "simulated_assumption_dependent",
                 }
             )
     return pd.DataFrame(rows)

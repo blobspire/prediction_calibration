@@ -111,6 +111,10 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
     sources = reporting_source_paths(config)
     aggregate = pd.read_parquet(sources["walkforward_aggregate_metrics"])
     edge_summary = pd.read_parquet(sources["edge_summary_by_model_tier"])
+    executability_audit = pd.read_parquet(sources["edge_executability_audit"])
+    fee_schedule_audit = pd.read_parquet(sources["edge_fee_schedule_audit"])
+    capacity_summary = pd.read_parquet(sources["edge_capacity_summary"])
+    simulated_pnl = pd.read_parquet(sources["edge_simulated_pnl"])
     raw_summary = _read_json(sources["raw_baseline_summary"])
     walkforward_summary = _read_json(sources["walkforward_summary"])
     edge_run_summary = _read_json(sources["edge_summary"])
@@ -140,6 +144,10 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
             config,
         ),
         "edge_friction_sensitivity": _edge_table(edge_summary, config),
+        "edge_executability_audit": _edge_executability_table(executability_audit),
+        "edge_fee_schedule_audit": _edge_fee_schedule_table(fee_schedule_audit),
+        "edge_capacity_summary": _edge_capacity_table(capacity_summary, config),
+        "edge_simulated_pnl_summary": _edge_pnl_table(simulated_pnl, config),
         "murphy_decomposition": _murphy_table(decomposition, config),
         "artifact_source_limitations": _limitations_table(
             raw_summary,
@@ -187,6 +195,13 @@ def reporting_source_paths(config: ReportingConfig) -> dict[str, Path]:
         "edge_summary_by_model_tier": (
             config.edge_artifact_dir / "edge_summary_by_model_tier.parquet"
         ),
+        "edge_summary_by_side_model_tier": (
+            config.edge_artifact_dir / "edge_summary_by_side_model_tier.parquet"
+        ),
+        "edge_executability_audit": config.edge_artifact_dir / "executability_audit.parquet",
+        "edge_fee_schedule_audit": config.edge_artifact_dir / "fee_schedule_audit.parquet",
+        "edge_capacity_summary": config.edge_artifact_dir / "capacity_summary.parquet",
+        "edge_simulated_pnl": config.edge_artifact_dir / "simulated_pnl.parquet",
         "inference_summary": config.inference_artifact_dir / "summary.json",
         "inference_score_intervals": config.inference_artifact_dir / "score_intervals.parquet",
         "inference_paired_score_differences": (
@@ -418,6 +433,91 @@ def _edge_table(edge_summary: pd.DataFrame, config: ReportingConfig) -> pd.DataF
         "selected_mean_simulated_realized_net_per_contract",
     ]
     return rows[[column for column in columns if column in rows.columns]].copy()
+
+
+def _edge_executability_table(executability_audit: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "execution_mode",
+        "quote_mode_used",
+        "input_prediction_rows",
+        "rows_with_attached_quote",
+        "candidate_rows",
+        "no_side_candidate_rows",
+        "synthetic_no_candidate_rows",
+        "future_quote_candidate_rows",
+        "quote_depth_available",
+        "capacity_source",
+        "executable_profit_evidence",
+        "screen_language",
+        "limitations",
+    ]
+    return executability_audit[[column for column in columns if column in executability_audit]]
+
+
+def _edge_fee_schedule_table(fee_schedule_audit: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "fee_schedule_id",
+        "start_date",
+        "end_date",
+        "formula",
+        "fee_rate",
+        "source_status",
+        "candidate_row_count",
+        "source_note",
+    ]
+    return fee_schedule_audit[[column for column in columns if column in fee_schedule_audit]]
+
+
+def _edge_capacity_table(capacity_summary: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+    if capacity_summary.empty:
+        return capacity_summary.copy()
+    rows = _ordered_models(capacity_summary.copy(), config)
+    columns = [
+        "trade_side",
+        "model_name",
+        "friction_tier",
+        "candidate_row_count",
+        "selected_row_count",
+        "assumed_contracts",
+        "capacity_source",
+        "selected_total_simulated_realized_net",
+        "selected_total_effective_cost",
+    ]
+    return rows[[column for column in columns if column in rows.columns]].copy()
+
+
+def _edge_pnl_table(simulated_pnl: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+    columns = [
+        "model_name",
+        "friction_tier",
+        "trade_side",
+        "selected_trade_count",
+        "final_cumulative_simulated_pnl",
+        "pnl_label",
+    ]
+    if simulated_pnl.empty:
+        return pd.DataFrame(columns=columns)
+    rows: list[dict[str, Any]] = []
+    for (model_name, tier, trade_side), frame in simulated_pnl.groupby(
+        ["model_name", "friction_tier", "trade_side"],
+        dropna=False,
+        observed=True,
+    ):
+        ordered = frame.sort_values(["forecast_ts", "row_id"])
+        rows.append(
+            {
+                "model_name": str(model_name),
+                "friction_tier": str(tier),
+                "trade_side": str(trade_side),
+                "selected_trade_count": int(len(ordered)),
+                "final_cumulative_simulated_pnl": float(
+                    ordered["cumulative_simulated_pnl"].astype(float).iloc[-1]
+                ),
+                "pnl_label": str(ordered["pnl_label"].iloc[-1]),
+            }
+        )
+    output = _ordered_models(pd.DataFrame(rows), config)
+    return output[columns].copy()
 
 
 def _murphy_table(decomposition: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
@@ -786,6 +886,8 @@ def _common_limitations(config: ReportingConfig) -> list[str]:
         "Domain/category manuscript outputs remain exploratory because taxonomy coverage "
         "includes lower-confidence title rules plus ambiguous and unknown rows.",
         "Edge outputs are simulated expected-value screens, not executable trading profits.",
+        "Phase 16 quote snapshots do not include order-book depth, so capacity and PnL "
+        "remain assumption-dependent.",
         "Score intervals and p-values use event-family clustered inference artifacts.",
         "Murphy decomposition uses binned saved predictions and reports the binning residual.",
         f"Artifact run label is {config.artifact_run_label}.",

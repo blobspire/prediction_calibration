@@ -9,14 +9,14 @@ import pandas as pd
 from predmkt.reports.final_audit import build_final_audit, load_final_audit_config
 
 
-def test_final_audit_writes_outputs_and_marks_known_limitations_partial(
+def test_final_audit_writes_outputs_and_passes_phase16_edge_checks(
     tmp_path: Path,
 ) -> None:
     config = load_final_audit_config(_write_fixture(tmp_path))
 
     summary = build_final_audit(config)
 
-    assert summary.overall_status == "PARTIAL"
+    assert summary.overall_status == "PASS"
     assert summary.fail_count == 0
     assert Path(summary.audit_checks_path).exists()
     assert Path(summary.artifact_inventory_path).exists()
@@ -96,6 +96,28 @@ def test_final_audit_fails_on_unsupported_edge_side(tmp_path: Path) -> None:
     assert summary.overall_status == "FAIL"
     checks = pd.read_parquet(Path(summary.audit_checks_path))
     edge = checks[checks["check_id"] == "edge_yes_only"].iloc[0]
+    assert edge["status"] == "FAIL"
+
+
+def test_final_audit_fails_on_synthetic_no_edge_prices(tmp_path: Path) -> None:
+    config = load_final_audit_config(_write_fixture(tmp_path, synthetic_no_edge=True))
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    edge = checks[checks["check_id"] == "edge_no_synthetic_no_prices"].iloc[0]
+    assert edge["status"] == "FAIL"
+
+
+def test_final_audit_fails_on_future_quote_edge_prices(tmp_path: Path) -> None:
+    config = load_final_audit_config(_write_fixture(tmp_path, future_quote_edge=True))
+
+    summary = build_final_audit(config)
+
+    assert summary.overall_status == "FAIL"
+    checks = pd.read_parquet(Path(summary.audit_checks_path))
+    edge = checks[checks["check_id"] == "edge_no_future_quotes"].iloc[0]
     assert edge["status"] == "FAIL"
 
 
@@ -188,6 +210,8 @@ def _write_fixture(
     missing_phase15_robustness: bool = False,
     bad_trade_weight_label: bool = False,
     missing_event_family_purge: bool = False,
+    synthetic_no_edge: bool = False,
+    future_quote_edge: bool = False,
 ) -> Path:
     raw_repo = tmp_path / "raw_repo"
     raw_repo.mkdir()
@@ -273,7 +297,12 @@ def _write_fixture(
         models=expected_models,
         bad_hierarchical_label=bad_hierarchical_label,
     )
-    _write_edge(edge, bad_edge_side=bad_edge_side)
+    _write_edge(
+        edge,
+        bad_edge_side=bad_edge_side,
+        synthetic_no_edge=synthetic_no_edge,
+        future_quote_edge=future_quote_edge,
+    )
     _write_inference(inference, iid_inference=iid_inference)
     _write_decomposition(decomposition, models=expected_models)
     _write_reporting(figures, tables)
@@ -293,6 +322,7 @@ inputs:
   interim_summary_path: {interim / "summary.json"}
   interim_contracts_path: {interim / "contracts.parquet"}
   interim_price_observations_path: {interim / "price_observations.parquet"}
+  quote_observations_path: {interim / "quote_observations.parquet"}
   contract_exclusion_summary_path: {interim / "contract_exclusion_summary.parquet"}
   price_observation_exclusion_summary_path: {interim / "price_exclusion_summary.parquet"}
   snapshot_panel_path: {processed / "contract_horizon_panel.parquet"}
@@ -349,6 +379,18 @@ def _write_interim(interim: Path) -> None:
     pd.DataFrame(
         {"contract_id": ["C0"], "source_ts": [pd.Timestamp("2023-12-01", tz="UTC")]}
     ).to_parquet(interim / "price_observations.parquet", index=False)
+    pd.DataFrame(
+        {
+            "contract_id": ["C0"],
+            "quote_ts": [pd.Timestamp("2023-12-01", tz="UTC")],
+            "yes_bid": [0.4],
+            "yes_ask": [0.42],
+            "no_bid": [0.58],
+            "no_ask": [0.60],
+            "quote_source": ["fixture"],
+            "depth_available": [False],
+        }
+    ).to_parquet(interim / "quote_observations.parquet", index=False)
     pd.DataFrame({"reason": ["status_not_finalized"], "count": [1]}).to_parquet(
         interim / "contract_exclusion_summary.parquet",
         index=False,
@@ -529,20 +571,99 @@ def _write_walkforward(
     )
 
 
-def _write_edge(edge: Path, *, bad_edge_side: bool) -> None:
+def _write_edge(
+    edge: Path,
+    *,
+    bad_edge_side: bool,
+    synthetic_no_edge: bool,
+    future_quote_edge: bool,
+) -> None:
     pd.DataFrame(
         {
-            "trade_side": ["NO" if bad_edge_side else "YES", "YES"],
+            "trade_side": [
+                "MAYBE" if bad_edge_side else "YES",
+                "NO" if synthetic_no_edge else "YES",
+            ],
             "effective_cost": [0.55, 0.56],
             "net_edge": [0.2, 0.19],
+            "entry_price_source": [
+                "transaction_snapshot_proxy",
+                "synthetic_no_complement" if synthetic_no_edge else "transaction_snapshot_proxy",
+            ],
+            "forecast_ts": [
+                pd.Timestamp("2024-01-05", tz="UTC"),
+                pd.Timestamp("2024-01-05", tz="UTC"),
+            ],
+            "quote_ts": [
+                pd.Timestamp("2024-01-04", tz="UTC"),
+                pd.Timestamp("2024-01-06" if future_quote_edge else "2024-01-04", tz="UTC"),
+            ],
+            "capacity_source": ["fixed_config_assumption_no_order_book_depth"] * 2,
         }
     ).to_parquet(edge / "edge_candidates.parquet", index=False)
+    pd.DataFrame(
+        {
+            "execution_mode": ["transaction_proxy"],
+            "quote_mode_used": [False],
+            "input_prediction_rows": [2],
+            "rows_with_attached_quote": [0],
+            "candidate_rows": [2],
+            "no_side_candidate_rows": [1 if synthetic_no_edge else 0],
+            "synthetic_no_candidate_rows": [1 if synthetic_no_edge else 0],
+            "future_quote_candidate_rows": [1 if future_quote_edge else 0],
+            "quote_depth_available": [False],
+            "capacity_source": ["fixed_config_assumption_no_order_book_depth"],
+            "executable_profit_evidence": [False],
+            "screen_language": ["simulated_expected_value_screen"],
+            "limitations": ["simulated screen without order-book depth"],
+        }
+    ).to_parquet(edge / "executability_audit.parquet", index=False)
+    pd.DataFrame(
+        {
+            "fee_schedule_id": ["kalshi_proxy_default"],
+            "start_date": ["1900-01-01"],
+            "end_date": [None],
+            "formula": ["kalshi_proxy"],
+            "fee_rate": [0.07],
+            "source_status": ["proxy_assumption"],
+            "source_note": ["fixture proxy"],
+            "candidate_row_count": [2],
+        }
+    ).to_parquet(edge / "fee_schedule_audit.parquet", index=False)
+    pd.DataFrame(
+        {
+            "trade_side": ["YES"],
+            "model_name": ["raw"],
+            "friction_tier": ["fee_only"],
+            "candidate_row_count": [2],
+            "selected_row_count": [1],
+            "assumed_contracts": [1.0],
+            "capacity_source": ["fixed_config_assumption_no_order_book_depth"],
+            "selected_total_simulated_realized_net": [0.1],
+            "selected_total_effective_cost": [0.5],
+        }
+    ).to_parquet(edge / "capacity_summary.parquet", index=False)
+    pd.DataFrame(
+        {
+            "model_name": ["raw"],
+            "friction_tier": ["fee_only"],
+            "trade_side": ["YES"],
+            "forecast_ts": [pd.Timestamp("2024-01-05", tz="UTC")],
+            "row_id": [1],
+            "simulated_realized_net_total": [0.1],
+            "cumulative_simulated_pnl": [0.1],
+            "pnl_label": ["simulated_assumption_dependent"],
+        }
+    ).to_parquet(edge / "simulated_pnl.parquet", index=False)
     (edge / "summary.json").write_text(
         json.dumps(
             {
                 "candidate_row_count": 2,
                 "trade_side": "yes_only",
-                "effective_config": {"screen": {"allow_synthetic_no": False}},
+                "effective_config": {
+                    "screen": {"allow_synthetic_no": False},
+                    "capacity": {"source": "fixed_config_assumption_no_order_book_depth"},
+                },
                 "limitations": [
                     "outputs are simulated expected-value screens and not executable profits"
                 ],
