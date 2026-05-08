@@ -8,9 +8,9 @@ This Phase 17 readiness audit records the final run registry, config hashes, sel
 
 - Run label: `phase17_readiness_cleanup`
 - Artifact run label: `full`
-- Started UTC: `2026-05-08T18:50:45.450568+00:00`
-- Ended UTC: `2026-05-08T18:51:05.753330+00:00`
-- Git commit: `4de9758b929b8709d1c61678bf5a934e7a45ed19`
+- Started UTC: `2026-05-08T18:59:05.685078+00:00`
+- Ended UTC: `2026-05-08T18:59:26.006659+00:00`
+- Git commit: `cb4c8e29950359ee201b793ff2955c6ad2689dae`
 - Git dirty: `True`
 - Final artifact audit status: `PASS`
 - Required check status: `PASS`
