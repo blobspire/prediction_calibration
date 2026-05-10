@@ -234,6 +234,8 @@ Do not claim:
 ## Deeper Documentation
 
 - `docs/CURRENT_CAPABILITIES.md`: current capability and artifact registry.
+- `agents/`: project governance docs, including `AGENTS.md`,
+  `PROJECT_BRIEF.md`, `ROADMAP.md`, and `TASK_LOG.md`.
 - `docs/final_readiness_audit.md`: Phase 17 readiness report and command
   sequence.
 - `docs/audits/final_data_semantics.md`: saved-artifact and data-semantics
@@ -253,6 +255,7 @@ Do not claim:
 
 ```text
 configs/                  YAML configs for methodology, paths, and audits
+agents/                   project governance docs and agent-facing task ledger
 data/raw/                 immutable source data; never modify in place
 data/interim/             cleaned normalized tables
 data/processed/           contract-horizon panels and modeling datasets

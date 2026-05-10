@@ -47,7 +47,7 @@ tests/                    schema, leakage, metric, and backtest tests
 
 ## Development workflow
 Before implementation:
-1. Read this file, `PROJECT_BRIEF.md`, and `ROADMAP.md`.
+1. Read `agents/AGENTS.md`, `agents/PROJECT_BRIEF.md`, and `agents/ROADMAP.md`.
 2. Inspect relevant source files.
 3. For multi-file or ambiguous tasks, propose a plan before editing.
 
@@ -135,7 +135,7 @@ A task is done only when:
 
 ## Research-grade completion standard
 
-This project should be built incrementally, but completed phases must implement the full research-grade functionality required by `PROJECT_BRIEF.md` and `ROADMAP.md`.
+This project should be built incrementally, but completed phases must implement the full research-grade functionality required by `agents/PROJECT_BRIEF.md` and `agents/ROADMAP.md`.
 
 Do not treat a task as complete merely because a small sample, smoke test, or minimal implementation runs. Small samples are allowed for verification speed, but the implementation itself must support the full configured design for that phase.
 
@@ -147,14 +147,14 @@ A phase is complete only when:
 - tests cover scientific invariants and failure modes, not only happy paths;
 - scripts can reproduce outputs from committed configs;
 - README.md documents user-facing commands, outputs, and limitations;
-- TASK_LOG.md records completed work, tests, assumptions, limitations, and next recommended tasks.
+- `agents/TASK_LOG.md` records completed work, tests, assumptions, limitations, and next recommended tasks.
 
 Smoke-test outputs must be labeled as smoke-test outputs. They must not be described as confirmatory results.
 
 If a task intentionally implements only a prototype, the agent must:
-1. label it as `PROTOTYPE` or `MVP` in `TASK_LOG.md`;
+1. label it as `PROTOTYPE` or `MVP` in `agents/TASK_LOG.md`;
 2. list the missing functionality explicitly;
-3. add a follow-up repair/generalization task to `TASK_LOG.md`;
+3. add a follow-up repair/generalization task to `agents/TASK_LOG.md`;
 4. not mark the roadmap phase complete.
 
 Never leave prototype-only functionality as the final implementation for a roadmap phase.
@@ -166,16 +166,16 @@ Before starting a new roadmap phase, check whether the previous phase has a PASS
 If the previous phase audit is missing, PARTIAL, or FAIL:
 - do not proceed to the next phase;
 - create or execute a repair task for the missing requirements;
-- update TASK_LOG.md with the blocker and repair plan.
+- update `agents/TASK_LOG.md` with the blocker and repair plan.
 
 A phase audit should check:
-- alignment with ROADMAP.md;
-- alignment with PROJECT_BRIEF.md;
+- alignment with `agents/ROADMAP.md`;
+- alignment with `agents/PROJECT_BRIEF.md`;
 - config-driven reproducibility;
 - canonical schemas needed by downstream phases;
 - tests for scientific invariants;
 - README.md updates;
-- TASK_LOG.md updates;
+- `agents/TASK_LOG.md` updates;
 - explicit limitations and placeholders;
 - no look-ahead leakage;
 - no accidental trade weighting;
@@ -192,7 +192,7 @@ Maintain documentation at three levels:
    - It should not include long implementation history.
    - It should never claim functionality or scientific results that do not exist.
 
-2. `TASK_LOG.md` is the implementation history and current status log.
+2. `agents/TASK_LOG.md` is the implementation history and current status log.
    - It should record completed tasks, files changed, tests run, assumptions, blockers, limitations, and next recommended tasks.
    - It should mark superseded MVP/prototype work clearly.
    - It should keep the "Next candidate tasks" section current, removing or marking completed phases.

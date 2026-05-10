@@ -15,7 +15,7 @@ A phase is complete only when:
 - assumptions are documented in configs or docs;
 - outputs are reproducible from scripts/configs;
 - no files under `data/raw/` are modified;
-- any limitations or unverified assumptions are recorded in `TASK_LOG.md`.
+- any limitations or unverified assumptions are recorded in `agents/TASK_LOG.md`.
 
 ## Phase 0 — Repository bootstrap
 
@@ -229,7 +229,7 @@ pipeline for contract-horizon snapshots, raw metrics, walk-forward
 recalibration, simulated edge screens, manuscript outputs, robustness
 diagnostics, and small-sample replication.
 
-It is **partial for final deployment** under `PROJECT_BRIEF.md`. The current
+It is **partial for final deployment** under `agents/PROJECT_BRIEF.md`. The current
 pipeline is not yet the final publishable research package because several
 brief-level requirements remain intentionally partial or absent:
 
@@ -322,7 +322,7 @@ is experimental and domain-level claims remain conditional on taxonomy
 confidence and ambiguity review.
 
 ### Goal
-Complete the recalibration method ladder described in `PROJECT_BRIEF.md`.
+Complete the recalibration method ladder described in `agents/PROJECT_BRIEF.md`.
 
 ### Deliverables
 - Bin-based reliability correction baseline.
