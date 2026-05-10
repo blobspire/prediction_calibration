@@ -8,9 +8,9 @@ This Phase 17 readiness audit records the final run registry, config hashes, sel
 
 - Run label: `phase17_readiness_cleanup`
 - Artifact run label: `full`
-- Started UTC: `2026-05-08T19:30:45.150638+00:00`
-- Ended UTC: `2026-05-08T19:31:06.295213+00:00`
-- Git commit: `4d1064b805a21d4e3b741ac1e92377ee3cdb86d8`
+- Started UTC: `2026-05-10T02:38:23.981082+00:00`
+- Ended UTC: `2026-05-10T02:38:45.232666+00:00`
+- Git commit: `b7d1f03c088e1042e46378cd1212e1917037a263`
 - Git dirty: `True`
 - Final artifact audit status: `PASS`
 - Required check status: `PASS`
@@ -77,6 +77,7 @@ uv run python scripts/run_small_sample_pipeline.py --config configs/replication_
 | robustness_summary | True | 8871 | sha256 |  |
 | figure_manifest | True | 6524 | sha256 |  |
 | table_manifest | True | 6600 | sha256 |  |
+| readme | True | 10581 | sha256 |  |
 | final_audit_summary | True | 6198 | sha256 |  |
 | final_audit_checks | True | 14116 | sha256 | 102.0 |
 | final_audit_phase_status | True | 3593 | sha256 | 18.0 |
@@ -103,6 +104,7 @@ uv run python scripts/run_small_sample_pipeline.py --config configs/replication_
 | robustness_summary | True | summary_or_parquet_metadata | 1 | 8871 |  |
 | figure_manifest | True | summary_or_parquet_metadata | 1 | 6524 |  |
 | table_manifest | True | summary_or_parquet_metadata | 1 | 6600 |  |
+| readme | True | summary_or_parquet_metadata | 1 | 10581 |  |
 
 ## Claim Boundaries
 
