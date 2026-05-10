@@ -8,9 +8,9 @@ This Phase 17 readiness audit records the final run registry, config hashes, sel
 
 - Run label: `phase17_readiness_cleanup`
 - Artifact run label: `full`
-- Started UTC: `2026-05-08T19:30:45.150638+00:00`
-- Ended UTC: `2026-05-08T19:31:06.295213+00:00`
-- Git commit: `4d1064b805a21d4e3b741ac1e92377ee3cdb86d8`
+- Started UTC: `2026-05-10T02:49:14.864924+00:00`
+- Ended UTC: `2026-05-10T02:49:35.243623+00:00`
+- Git commit: `189a1b727e37f82704d1022b3bd9f167ce818ee6`
 - Git dirty: `True`
 - Final artifact audit status: `PASS`
 - Required check status: `PASS`
@@ -77,6 +77,13 @@ uv run python scripts/run_small_sample_pipeline.py --config configs/replication_
 | robustness_summary | True | 8871 | sha256 |  |
 | figure_manifest | True | 6524 | sha256 |  |
 | table_manifest | True | 6600 | sha256 |  |
+| readme | True | 10798 | sha256 |  |
+| agents_readme | True | 644 | sha256 |  |
+| agents_instructions | True | 10771 | sha256 |  |
+| project_brief | True | 11198 | sha256 |  |
+| roadmap | True | 15680 | sha256 |  |
+| task_log | True | 56779 | sha256 |  |
+| current_capabilities_pointer | True | 220 | sha256 |  |
 | final_audit_summary | True | 6198 | sha256 |  |
 | final_audit_checks | True | 14116 | sha256 | 102.0 |
 | final_audit_phase_status | True | 3593 | sha256 | 18.0 |
@@ -103,6 +110,13 @@ uv run python scripts/run_small_sample_pipeline.py --config configs/replication_
 | robustness_summary | True | summary_or_parquet_metadata | 1 | 8871 |  |
 | figure_manifest | True | summary_or_parquet_metadata | 1 | 6524 |  |
 | table_manifest | True | summary_or_parquet_metadata | 1 | 6600 |  |
+| readme | True | summary_or_parquet_metadata | 1 | 10798 |  |
+| agents_readme | True | summary_or_parquet_metadata | 1 | 644 |  |
+| agents_instructions | True | summary_or_parquet_metadata | 1 | 10771 |  |
+| project_brief | True | summary_or_parquet_metadata | 1 | 11198 |  |
+| roadmap | True | summary_or_parquet_metadata | 1 | 15680 |  |
+| task_log | True | summary_or_parquet_metadata | 1 | 56779 |  |
+| current_capabilities_pointer | True | summary_or_parquet_metadata | 1 | 220 |  |
 
 ## Claim Boundaries
 

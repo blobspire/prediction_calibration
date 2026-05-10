@@ -19,6 +19,13 @@ inputs:
     robustness_summary: data/artifacts/robustness/summary.json
     figure_manifest: paper/figures/figure_manifest.json
     table_manifest: paper/tables/table_manifest.json
+    readme: README.md
+    agents_readme: agents/README.md
+    agents_instructions: agents/AGENTS.md
+    project_brief: agents/PROJECT_BRIEF.md
+    roadmap: agents/ROADMAP.md
+    task_log: agents/TASK_LOG.md
+    current_capabilities_pointer: agents/CURRENT_CAPABILITIES.md
   config_paths:
     - configs/sampling.yaml
     - configs/taxonomy.yaml

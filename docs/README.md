@@ -2,6 +2,8 @@
 
 Methodology notes, data-source inspections, schema decisions, and known limitations belong here.
 
+Project governance docs and the agent-facing task ledger live under `../agents/`.
+
 Current key docs:
 
 - `CURRENT_CAPABILITIES.md`: source-of-truth registry for implemented, partial, blocked, and missing project capabilities.
