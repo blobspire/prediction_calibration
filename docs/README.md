@@ -6,3 +6,8 @@ Current key docs:
 
 - `CURRENT_CAPABILITIES.md`: source-of-truth registry for implemented, partial, blocked, and missing project capabilities.
 - `data_sources/becker_kalshi_schema.md`: Becker/Kalshi schema, cleaning, snapshot, taxonomy, and feature notes.
+- `audits/final_data_semantics.md`: Phase 11 saved-artifact and data-semantics audit report.
+- `final_readiness_audit.md`: Phase 17 final run registry/readiness report with CI checks, config/artifact manifests, data snapshot metadata, full-run command sequence, and claim boundaries.
+- `inference/clustered_uncertainty.md`: Phase 13 event-family clustered inference methodology, sparse-group handling, FDR scope, and limitations.
+- `calibration/phase14_methods.md`: Phase 14 binned reliability correction, experimental empirical-Bayes additive recalibrator, and Murphy decomposition methodology.
+- `edge/executability_methodology.md`: Phase 16 quote-snapshot, NO-side, fee, capacity, and simulated-PnL executability limitations.

@@ -34,7 +34,9 @@ configs:
   metrics: configs/metrics.yaml
   validation: configs/validation.yaml
   models: configs/models.yaml
+  inference: configs/inference.yaml
   backtest: configs/backtest.yaml
+  decomposition: configs/decomposition.yaml
   reporting: configs/reporting.yaml
 limits:
   limit_contracts: 123
@@ -56,16 +58,25 @@ replication:
         "raw_baseline",
         "splits",
         "walkforward",
+        "inference",
         "edge",
+        "decomposition",
         "figures",
         "tables",
     ]
     assert "--limit-contracts" in stages[0].command
+    assert "--examples" in stages[1].command
+    assert str(tmp_path / "processed" / "contract_horizon_taxonomy_examples.parquet") in stages[
+        1
+    ].command
     assert "--limit-folds" in stages[5].command
+    assert "--predictions" in stages[6].command
+    assert "--artifact-dir" in stages[8].command
+    assert "--decomposition-dir" in stages[9].command
 
     manifest = replication.run_pipeline(config, dry_run=True)
     assert manifest.dry_run is True
-    assert manifest.stage_count == 9
+    assert manifest.stage_count == 11
     assert manifest_path.exists()
     written = json.loads(manifest_path.read_text())
     assert written["effective_config"]["replication"]["non_confirmatory"] is True

@@ -67,6 +67,7 @@ REQUIRED_FEATURE_COLUMNS = (
     "contract_id",
     "horizon_name",
     "forecast_ts",
+    "close_time",
     "resolution_ts",
     "raw_probability",
     "clipped_probability",
@@ -208,6 +209,12 @@ def _create_base_panel(con: duckdb.DuckDBPyConnection, config: FeatureBuildConfi
           ON c.contract_id = p.contract_id
         """
     )
+    base_columns = {row[0] for row in con.execute("DESCRIBE base_panel").fetchall()}
+    if "event_family_source" not in base_columns:
+        con.execute(
+            "ALTER TABLE base_panel "
+            "ADD COLUMN event_family_source VARCHAR DEFAULT 'event_id_fallback'"
+        )
 
 
 def _create_cumulative_features(
@@ -328,7 +335,10 @@ def _create_feature_panel(con: duckdb.DuckDBPyConnection, config: FeatureBuildCo
             b.snapshot_price IS NULL AS raw_probability_missing,
             b.domain IS NULL OR b.domain = 'unknown' AS domain_missing_or_unknown,
             b.category IS NULL OR b.category = 'unknown' AS category_missing_or_unknown,
-            b.taxonomy_source = 'event_id_proxy' AS event_family_id_inferred,
+            coalesce(b.event_family_source, '') IN (
+                'event_id_fallback',
+                'contract_id_fallback'
+            ) AS event_family_id_inferred,
             b.event_family_id IS NULL OR b.event_family_id = '' AS event_family_id_missing,
             b.contract_open_ts IS NULL AS listing_ts_missing,
             mf.momentum_trade_count < 2 AS momentum_missing,
@@ -436,8 +446,8 @@ def _build_summary(
         duplicate_key_validation=validation["duplicate_key_validation"],
         effective_config=_effective_config(config),
         limitations=[
-            "domain/category are inherited from taxonomy panel and may be unknown",
-            "event_family_id currently uses the taxonomy layer's event_id proxy",
+            "domain/category are inherited from taxonomy panel and may be unknown or ambiguous",
+            "event_family_id uses taxonomy regex rules where available and otherwise falls back",
             "liquidity proxy uses public trade volume/count, not historical order-book depth",
             "momentum/volatility use transaction prices only, not executable quotes",
         ],

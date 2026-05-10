@@ -1,0 +1,64 @@
+inputs:
+  raw_repo_path: data/raw/becker_prediction_market_analysis
+  interim_summary_path: data/interim/kalshi/summary.json
+  interim_contracts_path: data/interim/kalshi/contracts.parquet
+  interim_price_observations_path: data/interim/kalshi/price_observations.parquet
+  quote_observations_path: data/interim/kalshi/quote_observations.parquet
+  contract_exclusion_summary_path: data/interim/kalshi/contract_exclusion_summary.parquet
+  price_observation_exclusion_summary_path: data/interim/kalshi/price_observation_exclusion_summary.parquet
+  snapshot_panel_path: data/processed/contract_horizon_panel.parquet
+  snapshot_summary_path: data/processed/contract_horizon_panel_summary.json
+  taxonomy_panel_path: data/processed/contract_horizon_panel_taxonomy.parquet
+  taxonomy_summary_path: data/processed/contract_horizon_taxonomy_summary.json
+  modeling_panel_path: data/processed/modeling_panel.parquet
+  modeling_summary_path: data/processed/modeling_panel_summary.json
+  splits_path: data/processed/walkforward_splits.parquet
+  split_integrity_path: data/processed/walkforward_split_integrity.parquet
+  split_summary_path: data/processed/walkforward_split_summary.json
+  raw_baseline_dir: data/artifacts/raw_baseline
+  walkforward_dir: data/artifacts/walkforward
+  edge_dir: data/artifacts/edge_sim
+  inference_dir: data/artifacts/inference
+  decomposition_dir: data/artifacts/decomposition
+  robustness_dir: data/artifacts/robustness
+  figure_manifest_path: paper/figures/figure_manifest.json
+  table_manifest_path: paper/tables/table_manifest.json
+
+outputs:
+  audit_dir: data/artifacts/final_audit
+  semantics_doc_path: docs/audits/final_data_semantics.md
+
+audit:
+  expected_horizons: [30d, 14d, 7d, 3d, 1d, 6h, 1h, 15m, close]
+  expected_models: [raw, platt, beta, isotonic, binned_reliability, hierarchical_eb]
+  expected_edge_trade_side: "YES"
+  expected_reporting_run_label: full
+  known_partial_limitations:
+    - taxonomy_low_confidence_ambiguous_unknown_rows
+    - event_family_regex_and_fallback_mix
+    - edge_outputs_simulated_not_executable
+    - quote_depth_unavailable
+    - clustered_uncertainty_uses_event_family_proxy_where_regex_unavailable
+    - hierarchical_eb_is_experimental
+    - murphy_decomposition_binning_residual
+  severity_rules:
+    hard_fail:
+      - missing_required_artifact
+      - duplicate_contract_horizon_keys
+      - snapshot_or_feature_lookahead
+      - split_time_order_failure
+      - prediction_panel_key_mismatch
+      - iid_or_row_bootstrap_in_confirmatory_inference
+      - unsupported_executable_profit_language
+      - missing_phase14_decomposition_artifacts
+      - hierarchical_model_not_labeled_experimental
+      - missing_phase15_robustness_artifacts
+      - missing_phase16_executability_artifacts
+      - unlabeled_trade_weighted_confirmatory_output
+      - synthetic_no_edge_prices
+      - future_quote_edge_prices
+      - missing_event_family_purged_sensitivity
+    partial_allowed:
+      - taxonomy_low_confidence_ambiguous_unknown_rows
+      - event_family_regex_and_fallback_mix
+      - edge_outputs_simulated_not_executable

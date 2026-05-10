@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from predmkt.metrics.scoring import clip_probability
 
@@ -18,6 +19,14 @@ class CalibratorConfig:
     max_iterations: int = 100
     tolerance: float = 1e-8
     ridge: float = 1e-9
+    reliability_bin_count: int = 10
+    reliability_min_bin_count: int = 30
+    reliability_prior_strength: float = 20.0
+    reliability_monotone: bool = True
+    hierarchical_group_columns: tuple[str, ...] = ("horizon_name", "domain")
+    hierarchical_min_group_rows: int = 50
+    hierarchical_prior_strength: float = 100.0
+    hierarchical_backfit_iterations: int = 3
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.epsilon) or not 0.0 < self.epsilon < 0.5:
@@ -30,6 +39,26 @@ class CalibratorConfig:
             raise ValueError("calibrator tolerance must be finite and positive")
         if self.ridge < 0.0 or not math.isfinite(self.ridge):
             raise ValueError("calibrator ridge must be finite and nonnegative")
+        if self.reliability_bin_count <= 0:
+            raise ValueError("reliability_bin_count must be positive")
+        if self.reliability_min_bin_count < 0:
+            raise ValueError("reliability_min_bin_count cannot be negative")
+        if (
+            self.reliability_prior_strength < 0.0
+            or not math.isfinite(self.reliability_prior_strength)
+        ):
+            raise ValueError("reliability_prior_strength must be finite and nonnegative")
+        if self.hierarchical_min_group_rows < 0:
+            raise ValueError("hierarchical_min_group_rows cannot be negative")
+        if (
+            self.hierarchical_prior_strength < 0.0
+            or not math.isfinite(self.hierarchical_prior_strength)
+        ):
+            raise ValueError("hierarchical_prior_strength must be finite and nonnegative")
+        if self.hierarchical_backfit_iterations <= 0:
+            raise ValueError("hierarchical_backfit_iterations must be positive")
+        if not self.hierarchical_group_columns:
+            raise ValueError("hierarchical_group_columns cannot be empty")
 
 
 @dataclass
@@ -56,8 +85,44 @@ class BaseCalibrator:
 
         raise NotImplementedError
 
+    def fit_with_context(
+        self,
+        probabilities: Sequence[float],
+        outcomes: Sequence[int | float],
+        context: Mapping[str, Sequence[object]] | None = None,
+    ) -> BaseCalibrator:
+        """Fit with optional row context.
+
+        Context-free calibrators ignore ``context`` through this default method.
+        """
+
+        del context
+        return self.fit(probabilities, outcomes)
+
+    def predict_proba_with_context(
+        self,
+        probabilities: Sequence[float],
+        context: Mapping[str, Sequence[object]] | None = None,
+    ) -> list[float]:
+        """Predict with optional row context."""
+
+        del context
+        return self.predict_proba(probabilities)
+
     @property
-    def parameters(self) -> dict[str, float | list[float] | list[int] | None]:
+    def requires_context(self) -> tuple[str, ...]:
+        """Return context columns required by this calibrator."""
+
+        return ()
+
+    @property
+    def is_experimental(self) -> bool:
+        """Whether this calibrator is experimental for confirmatory claims."""
+
+        return False
+
+    @property
+    def parameters(self) -> dict[str, Any]:
         """Return learned parameters in a serializable shape."""
 
         return {}

@@ -27,7 +27,7 @@ contract-horizon snapshot construction, taxonomy enrichment, feature-panel
 construction, raw baseline forecast metrics, and strict walk-forward split
 construction. The codebase also includes reusable simple recalibrators.
 Walk-forward raw-vs-recalibrated model evaluation is available for simple
-calibrators. Edge simulation will be added in a later phase.
+calibrators, with conservative simulated edge screens and reporting utilities.
 
 Inspect local raw files without modifying `data/raw/`:
 
@@ -63,7 +63,7 @@ uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
 ```
 
 The sampling config defines the default horizon grid
-`30d,14d,7d,3d,1d,6h,1h,close`, `close = resolution_ts - 1 minute`,
+`30d,14d,7d,3d,1d,6h,1h,15m,close`, `close = resolution_ts - 1 minute`,
 and a horizon-specific snapshot policy. The current policy uses last trade as
 the primary snapshot, retains horizon-specific VWAP fields for diagnostics, and
 tightens near-close stale-price rules:
@@ -74,6 +74,7 @@ tightens near-close stale-price rules:
 1d:         1h VWAP window, 1d max staleness
 6h:         15m VWAP window, 6h max staleness
 1h:         5m VWAP window, 1h max staleness
+15m:        5m VWAP window, 15m max staleness
 close:      last-trade primary, 5m VWAP window, 5m max staleness
 ```
 
@@ -90,17 +91,22 @@ Add conservative taxonomy fields to the snapshot panel:
 uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
 ```
 
-The taxonomy config currently uses `event_id` as the `event_family_id` proxy and
-sets `domain` and `category` to `unknown` unless an explicit `event_id` rule is
-added. Title-based inference is disabled. The script writes:
+The taxonomy config uses ordered, explicit rules with precedence
+`exact_event_id > event_family_regex > prefix_regex > title_keyword >
+default_unknown`. It adds domain/category, sports flags, taxonomy confidence,
+ambiguity flags, and audited event-family IDs. Regex event-family rules are used
+where available, then `event_id` and `contract_id` fallbacks are labeled
+explicitly. Title-keyword rules are config-only, lower confidence, and
+conflicting title matches are marked ambiguous. The script writes:
 
 ```text
 data/processed/contract_horizon_panel_taxonomy.parquet
 data/processed/contract_horizon_taxonomy_audit.parquet
+data/processed/contract_horizon_taxonomy_examples.parquet
 data/processed/contract_horizon_taxonomy_summary.json
 ```
 
-Do not report domain-level findings until taxonomy coverage has been audited.
+Domain/category findings remain conditional on confidence and ambiguity audits.
 
 Build the modeling feature panel:
 
@@ -117,10 +123,10 @@ data/processed/modeling_panel.parquet
 data/processed/modeling_panel_summary.json
 ```
 
-Current domain/category values are inherited from the taxonomy panel and are
-`unknown` unless explicit taxonomy rules have been added. The feature panel
-includes flags for unknown taxonomy, inferred event-family IDs, missing listing
-timestamps, missing momentum/volatility windows, and missing liquidity inputs.
+Current domain/category values are inherited from the Phase 12 taxonomy panel.
+The feature panel includes flags for unknown or ambiguous taxonomy, fallback
+event-family IDs, missing listing timestamps, missing momentum/volatility
+windows, and missing liquidity inputs.
 
 Evaluate raw Kalshi probabilities:
 
@@ -229,8 +235,10 @@ data/processed/walkforward_split_integrity.parquet
 data/processed/walkforward_split_summary.json
 ```
 
-The current event-family identifier is still a conservative `event_id` proxy for
-most rows, so leakage diagnostics are useful but not a final family taxonomy.
+Current event-family identifiers are audited but still mixed: regex grouping is
+used where configured, and explicit `event_id` or `contract_id` fallbacks are
+labeled where stronger grouping is unavailable. Leakage diagnostics are useful,
+and Phase 13 clustered inference now resamples these event-family IDs.
 
 Use simple recalibrators from Python:
 
@@ -241,11 +249,14 @@ config = load_models_config("configs/models.yaml")
 calibrators = make_configured_calibrators(config)
 ```
 
-`configs/models.yaml` enables `raw`, `platt`, `beta`, and `isotonic`
-calibrators by default. Each exposes `fit(probabilities, outcomes)` and
-`predict_proba(probabilities)`, and every prediction is clipped to the configured
-epsilon, currently `0.000001`. These are reusable Phase 6 model components only:
-they can be used directly by the walk-forward evaluator below.
+`configs/models.yaml` enables `raw`, `platt`, `beta`, `isotonic`,
+`binned_reliability`, and `hierarchical_eb` by default. Context-free models
+expose `fit(probabilities, outcomes)` and `predict_proba(probabilities)`;
+context-aware models also expose `fit_with_context(...)` and
+`predict_proba_with_context(...)`. Every prediction is clipped to the configured
+epsilon, currently `0.000001`. The `hierarchical_eb` model is explicitly
+experimental: it is an empirical-Bayes additive logit approximation over
+`horizon_name` and `domain`, not a full Bayesian mixed model.
 
 Run walk-forward raw versus recalibrated evaluation:
 
@@ -256,8 +267,10 @@ uv run python scripts/fit_walkforward.py --config configs/models.yaml
 The evaluator trains each configured calibrator on `train` + `validation` rows
 from each fold, then removes any fit row whose outcome was not resolved by that
 fold's test start. Raw and recalibrated models are scored on identical future
-test row IDs. Event-family overlaps are reported but not filtered because the
-current `event_family_id` remains a conservative proxy.
+test row IDs. Event-family overlaps are reported but not filtered; current
+`event_family_id` values combine audited regex grouping with explicit event and
+contract fallbacks. Phase 13 inference handles uncertainty by resampling these
+event-family clusters.
 
 The script writes:
 
@@ -269,6 +282,51 @@ data/artifacts/walkforward/calibrator_fits.parquet
 data/artifacts/walkforward/event_family_leakage.parquet
 data/artifacts/walkforward/summary.json
 ```
+
+Run clustered uncertainty for raw versus recalibrated walk-forward results:
+
+```bash
+uv run python scripts/run_inference.py --config configs/inference.yaml
+```
+
+The inference script reads saved walk-forward predictions and the modeling panel;
+it does not refit calibrators or rebuild snapshots. Confirmatory uncertainty uses
+event-family clustered bootstrap only, never iid row or trade bootstrap. It
+writes:
+
+```text
+data/artifacts/inference/score_intervals.parquet
+data/artifacts/inference/paired_score_differences.parquet
+data/artifacts/inference/calibration_intervals.parquet
+data/artifacts/inference/multiple_comparison_adjustments.parquet
+data/artifacts/inference/paired_loss_diagnostics.parquet
+data/artifacts/inference/bootstrap_replicates.parquet
+data/artifacts/inference/summary.json
+```
+
+Manuscript score tables merge these artifacts to include confidence intervals,
+paired effect sizes, bootstrap p-values, Benjamini-Hochberg q-values, and
+effective event-family cluster counts. Domain/category inference remains
+conditional on taxonomy confidence and ambiguity.
+
+Evaluate Murphy-style Brier decomposition from saved out-of-sample predictions:
+
+```bash
+uv run python scripts/evaluate_decomposition.py --config configs/decomposition.yaml
+```
+
+The decomposition script reads `data/artifacts/walkforward/predictions.parquet`
+only; it does not refit calibrators or rebuild data. It writes:
+
+```text
+data/artifacts/decomposition/murphy_decomposition.parquet
+data/artifacts/decomposition/murphy_bins.parquet
+data/artifacts/decomposition/summary.json
+```
+
+The Murphy components use fixed-width probability bins. Because probabilities
+vary within bins, the script reports `binning_residual = raw_brier -
+decomposed_brier` instead of claiming an exact identity.
 
 For a quick smoke run on the first fold:
 
@@ -289,7 +347,25 @@ uv run python scripts/run_edge_sim.py \
   --artifact-dir data/artifacts/edge_sim_smoke
 ```
 
-Run conservative fee-aware YES-side edge screens:
+Build Phase 16 quote observations from immutable Becker/Kalshi market snapshots:
+
+```bash
+uv run python scripts/build_quote_observations.py --config configs/quotes.yaml
+```
+
+This writes:
+
+```text
+data/interim/kalshi/quote_observations.parquet
+data/interim/kalshi/quote_observation_exclusion_summary.parquet
+data/interim/kalshi/quote_observations_summary.json
+```
+
+`_fetched_at` is treated as the UTC quote-snapshot timestamp. These snapshots
+include explicit YES/NO bid/ask fields, but they do not include order-book depth
+or executable size.
+
+Run conservative fee-aware simulated edge screens:
 
 ```bash
 uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
@@ -310,17 +386,24 @@ It writes:
 data/artifacts/edge_sim/edge_candidates.parquet
 data/artifacts/edge_sim/edge_summary_by_tier.parquet
 data/artifacts/edge_sim/edge_summary_by_model_tier.parquet
+data/artifacts/edge_sim/edge_summary_by_side_model_tier.parquet
 data/artifacts/edge_sim/excluded_rows.parquet
+data/artifacts/edge_sim/executability_audit.parquet
+data/artifacts/edge_sim/fee_schedule_audit.parquet
+data/artifacts/edge_sim/capacity_summary.parquet
+data/artifacts/edge_sim/simulated_pnl.parquet
 data/artifacts/edge_sim/summary.json
 ```
 
 These are simulated expected-value screens, not executable trading profits or
-trade recommendations. The first implementation is taker-only and YES-side
-only. It uses a configurable Kalshi-style fee proxy, a 5% annual capital-lockup
-charge by default, and conservative spread/slippage haircuts because the current
-public Becker/Kalshi-derived panel does not include historical executable
-bid/ask quotes or order-book depth. NO-side candidates are not synthesized from
-`1 - YES price`.
+trade recommendations. The default `configs/backtest.yaml` still uses the
+transaction-price snapshot proxy. `quote_snapshot_proxy` mode is available for
+explicit YES/NO asks from `quote_observations.parquet`, but quote-snapshot
+outputs remain non-executable because there is no order-book depth. NO-side
+candidates require explicit observed NO asks; the simulator never synthesizes a
+NO price from `1 - YES price`. Fee schedules, capacity, and PnL are
+config-driven assumptions and are labeled as proxies unless documented
+historical execution data is supplied.
 
 Create manuscript-ready figures and tables from saved full-run artifacts:
 
@@ -332,9 +415,12 @@ uv run python scripts/make_tables.py --config configs/reporting.yaml
 The reporting config defaults to full artifact directories:
 
 ```text
+data/processed/modeling_panel.parquet
 data/artifacts/raw_baseline/
 data/artifacts/walkforward/
 data/artifacts/edge_sim/
+data/artifacts/inference/
+data/artifacts/decomposition/
 ```
 
 and writes to:
@@ -344,10 +430,17 @@ paper/figures/
 paper/tables/
 ```
 
-These scripts do not fit models or recompute edge screens. They fail clearly if
-the full walk-forward or edge artifacts are missing. For a deliberate draft run
-from the current smoke artifacts, pass `--artifact-run-label smoke` plus
-`--walkforward-dir` and `--edge-dir` overrides.
+These scripts do not fit models, recompute core metrics, or rerun edge screens.
+They fail clearly if the full walk-forward, edge, inference, or decomposition
+artifacts are missing. For a deliberate draft run from smoke artifacts, pass
+`--artifact-run-label smoke` plus artifact-dir overrides including
+`--inference-dir` and `--decomposition-dir`.
+
+The manuscript figure set includes sample construction, overall and
+horizon-level reliability, exploratory domain reliability, calibration
+slope heatmaps, calibration-gain-over-time curves, score comparisons, edge
+friction sensitivity, and simulated PnL. Domain reliability outputs are
+exploratory until taxonomy confidence and ambiguity are manually reviewed.
 
 Run non-confirmatory robustness diagnostics from saved full-run artifacts:
 
@@ -363,13 +456,24 @@ data/artifacts/robustness/
 paper/robustness/tables/
 ```
 
-These outputs compare saved-result snapshot-method slices, liquidity filters,
-domain-exclusion availability, and alternative fee/spread/slippage/lockup
-assumptions. They are labeled non-confirmatory. Domain/category exclusion checks
-currently report `not_applicable` when taxonomy coverage is all `unknown`.
-Friction checks remain simulated EV screens because quote depth, historical
-executability, and order-book costs are not available in the current public
-data.
+These outputs compare saved-result snapshot-method slices, stale-price filters,
+liquidity filters, equal-contract versus equal-event-family versus explicitly
+trade-weighted scoring, domain/sports/taxonomy exclusions, event-family-purged
+sensitivity, full alternate snapshot variants, and alternative
+fee/spread/slippage/lockup assumptions. They are labeled non-confirmatory.
+Domain/category exclusions use the Phase 12 rule-based taxonomy where available
+and report `not_applicable` only if configured fields are unavailable or all
+unknown in the input artifact. Full alternate snapshot variants write under
+`data/artifacts/robustness/full_snapshot_variants/` and
+`data/processed/robustness/full_snapshot_variants/`; they do not overwrite the
+confirmatory panel or walk-forward outputs. Variant inference uses the
+diagnostic bootstrap count configured in `configs/robustness.yaml`, not the
+confirmatory Phase 13 bootstrap count, because these outputs are sensitivity
+checks. Friction checks remain simulated EV screens because quote depth,
+historical executability, and order-book costs are not available in the current
+public data. Threshold or snapshot-policy changes should be promoted to
+defaults only after these separated robustness artifacts show the current
+confirmatory defaults are materially fragile.
 
 Run the deterministic small-sample paper replication path:
 
@@ -385,14 +489,63 @@ uv run python scripts/run_small_sample_pipeline.py --config configs/replication_
 
 The small-sample path starts from cleaned interim Kalshi tables, not
 `data/raw/`, and runs snapshot, taxonomy, feature, raw-baseline, split,
-walk-forward, edge, figure, and table stages with deterministic limits. It
-writes separately from primary outputs:
+walk-forward, inference, edge, decomposition, figure, and table stages with
+deterministic limits. It writes separately from primary outputs:
 
 ```text
 data/processed/replication_small/
 data/artifacts/replication/small_sample/
 paper/replication/small_sample/
 ```
+
+Audit the saved Phase 2-16 artifact chain and final data semantics:
+
+```bash
+uv run python scripts/audit_final_artifacts.py --config configs/final_audit.yaml
+```
+
+The final audit is reporting-only. It does not rebuild data, refit models, or
+change methodology. It writes:
+
+```text
+data/artifacts/final_audit/artifact_inventory.parquet
+data/artifacts/final_audit/audit_checks.parquet
+data/artifacts/final_audit/phase_status.parquet
+data/artifacts/final_audit/summary.json
+docs/audits/final_data_semantics.md
+```
+
+The current saved verdict is `PASS` for Phase 2-16 artifact invariants. The
+verdict does not upgrade edge outputs into executable trading evidence, and it
+does not remove taxonomy confidence/ambiguity review from the final claim
+boundaries.
+
+Build the Phase 17 final run registry and readiness audit:
+
+```bash
+uv run python scripts/build_final_run_registry.py --config configs/final_run.yaml
+```
+
+This writes:
+
+```text
+data/artifacts/final_run_registry/run_registry.json
+data/artifacts/final_run_registry/config_manifest.parquet
+data/artifacts/final_run_registry/artifact_manifest.parquet
+data/artifacts/final_run_registry/data_snapshot_manifest.parquet
+data/artifacts/final_run_registry/check_results.parquet
+data/artifacts/final_run_registry/configs_snapshot/
+data/artifacts/final_run_registry/summary.json
+docs/final_readiness_audit.md
+```
+
+The final readiness command records the full-run command sequence,
+small-sample replication command, git state, frozen config snapshot, config
+hashes, selected artifact hashes, raw-data snapshot metadata, and verification
+results. The CI type-check
+gate is the scoped mypy command recorded in `configs/final_run.yaml`; full
+`uv run mypy src` is not yet the CI gate because older PyArrow/Pandas-heavy
+modules need typing cleanup.
 
 Use the tests to verify the package imports and schema utilities:
 

@@ -38,7 +38,9 @@ class ReplicationConfig:
     metrics_config: Path
     validation_config: Path
     models_config: Path
+    inference_config: Path
     backtest_config: Path
+    decomposition_config: Path
     reporting_config: Path
     limit_contracts: int
     limit_folds: int
@@ -86,7 +88,9 @@ def load_replication_config(path: Path) -> ReplicationConfig:
         metrics_config=Path(_required(configs, "metrics")),
         validation_config=Path(_required(configs, "validation")),
         models_config=Path(_required(configs, "models")),
+        inference_config=Path(_required(configs, "inference")),
         backtest_config=Path(_required(configs, "backtest")),
+        decomposition_config=Path(_required(configs, "decomposition")),
         reporting_config=Path(_required(configs, "reporting")),
         limit_contracts=int(_required(limits, "limit_contracts")),
         limit_folds=int(_required(limits, "limit_folds")),
@@ -108,6 +112,7 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
     snapshot_summary = processed / "contract_horizon_panel_summary.json"
     taxonomy = processed / "contract_horizon_panel_taxonomy.parquet"
     taxonomy_audit = processed / "contract_horizon_taxonomy_audit.parquet"
+    taxonomy_examples = processed / "contract_horizon_taxonomy_examples.parquet"
     taxonomy_summary = processed / "contract_horizon_taxonomy_summary.json"
     features = processed / "modeling_panel.parquet"
     features_summary = processed / "modeling_panel_summary.json"
@@ -116,7 +121,9 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
     split_summary = processed / "walkforward_split_summary.json"
     raw_baseline = artifacts / "raw_baseline"
     walkforward = artifacts / "walkforward"
+    inference = artifacts / "inference"
     edge = artifacts / "edge_sim"
+    decomposition = artifacts / "decomposition"
     figures = paper / "figures"
     tables = paper / "tables"
 
@@ -158,6 +165,8 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
                 str(taxonomy_audit),
                 "--summary",
                 str(taxonomy_summary),
+                "--examples",
+                str(taxonomy_examples),
             ],
         ),
         PipelineStage(
@@ -227,6 +236,21 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
             ],
         ),
         PipelineStage(
+            "inference",
+            [
+                py,
+                "scripts/run_inference.py",
+                "--config",
+                str(config.inference_config),
+                "--predictions",
+                str(walkforward / "predictions.parquet"),
+                "--panel",
+                str(features),
+                "--artifact-dir",
+                str(inference),
+            ],
+        ),
+        PipelineStage(
             "edge",
             [
                 py,
@@ -242,6 +266,19 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
             ],
         ),
         PipelineStage(
+            "decomposition",
+            [
+                py,
+                "scripts/evaluate_decomposition.py",
+                "--config",
+                str(config.decomposition_config),
+                "--predictions",
+                str(walkforward / "predictions.parquet"),
+                "--artifact-dir",
+                str(decomposition),
+            ],
+        ),
+        PipelineStage(
             "figures",
             [
                 py,
@@ -254,6 +291,10 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
                 str(walkforward),
                 "--edge-dir",
                 str(edge),
+                "--inference-dir",
+                str(inference),
+                "--decomposition-dir",
+                str(decomposition),
                 "--artifact-run-label",
                 config.run_label,
                 "--figure-dir",
@@ -273,6 +314,10 @@ def build_stages(config: ReplicationConfig) -> list[PipelineStage]:
                 str(walkforward),
                 "--edge-dir",
                 str(edge),
+                "--inference-dir",
+                str(inference),
+                "--decomposition-dir",
+                str(decomposition),
                 "--artifact-run-label",
                 config.run_label,
                 "--table-dir",

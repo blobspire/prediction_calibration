@@ -8,8 +8,8 @@ outputs:
   audit_dir: data/artifacts/raw_baseline/audit
 
 audit:
-  horizons: [30d, 14d, 7d, 3d, 1d, 6h, 1h, close]
-  close_and_near_horizons: [1h, close]
+  horizons: [30d, 14d, 7d, 3d, 1d, 6h, 1h, 15m, close]
+  close_and_near_horizons: [1h, 15m, close]
   staleness_thresholds_seconds: [300, 900, 3600, 21600, 86400]
   strict_vwap_windows_seconds: [300, 900, 3600, 21600]
   strict_max_staleness_seconds: [300, 900, 3600, 21600, 86400]

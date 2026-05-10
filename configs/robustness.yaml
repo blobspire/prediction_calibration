@@ -2,8 +2,15 @@ inputs:
   panel_path: data/processed/modeling_panel.parquet
   walkforward_artifact_dir: data/artifacts/walkforward
   edge_artifact_dir: data/artifacts/edge_sim
+  splits_path: data/processed/walkforward_splits.parquet
   backtest_config_path: configs/backtest.yaml
   sampling_config_path: configs/sampling.yaml
+  taxonomy_config_path: configs/taxonomy.yaml
+  features_config_path: configs/features.yaml
+  validation_config_path: configs/validation.yaml
+  models_config_path: configs/models.yaml
+  inference_config_path: configs/inference.yaml
+  decomposition_config_path: configs/decomposition.yaml
   contracts_path: data/interim/kalshi/contracts.parquet
   price_observations_path: data/interim/kalshi/price_observations.parquet
 
@@ -23,8 +30,12 @@ columns:
   liquidity_column: public_liquidity_proxy
   cumulative_volume_column: cumulative_volume_to_forecast
   staleness_column: price_staleness_seconds
+  trade_weight_column: cumulative_volume_to_forecast
   domain_column: domain
   category_column: category
+  is_sports_column: is_sports
+  taxonomy_confidence_column: taxonomy_confidence
+  taxonomy_ambiguous_column: taxonomy_ambiguous
 
 metrics:
   log_loss_epsilon: 0.000001
@@ -47,11 +58,46 @@ robustness:
     - name: cumulative_volume_ge_100
       min_liquidity_proxy:
       min_cumulative_volume: 100.0
+  staleness_filters:
+    - name: all_rows
+      max_staleness_seconds:
+    - name: staleness_le_24h
+      max_staleness_seconds: 86400.0
+    - name: staleness_le_6h
+      max_staleness_seconds: 21600.0
+    - name: staleness_le_1h
+      max_staleness_seconds: 3600.0
+    - name: staleness_le_15m
+      max_staleness_seconds: 900.0
+    - name: staleness_le_5m
+      max_staleness_seconds: 300.0
+  weighting_sensitivity:
+    modes:
+      - equal_contract
+      - equal_event_family
+      - trade_weighted
+    trade_weight_column: cumulative_volume_to_forecast
+  event_family_purging:
+    enabled: true
+    fit_splits:
+      - train
+      - validation
   domain_exclusions:
     - name: exclude_unknown_domain
       exclude_domains:
         - unknown
       exclude_categories: []
+    - name: exclude_sports
+      exclude_domains: []
+      exclude_categories: []
+      exclude_sports: true
+    - name: high_medium_confidence_nonambiguous
+      exclude_domains: []
+      exclude_categories: []
+      exclude_ambiguous: true
+      allowed_taxonomy_confidence:
+        - high
+        - medium
   friction_scenarios:
     - name: base
       fee_rate: 0.07
@@ -104,3 +150,28 @@ robustness:
         snapshot_methods:
           - vwap
           - last_trade
+  full_snapshot_variants:
+    enabled: true
+    run_downstream: true
+    inference_bootstrap_iterations: 100
+    limit_contracts:
+    output_dir: data/artifacts/robustness/full_snapshot_variants
+    processed_dir: data/processed/robustness/full_snapshot_variants
+    variants:
+      - name: last_trade_only
+        snapshot_methods:
+          - last_trade
+        vwap_window: 5m
+        max_staleness: 7d
+      - name: short_window_vwap_primary
+        snapshot_methods:
+          - vwap
+          - last_trade
+        vwap_window: 5m
+        max_staleness: 7d
+      - name: long_window_vwap_primary
+        snapshot_methods:
+          - vwap
+          - last_trade
+        vwap_window: 6h
+        max_staleness: 7d

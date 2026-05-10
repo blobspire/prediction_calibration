@@ -161,6 +161,27 @@ The cleaned contract output has one row per `contract_id`; the initial invariant
 - The interim `price_observations.parquet` remains a source-observation table, not the confirmatory analysis table. Contract-horizon sampling happens later.
 - The interim builder filters price observations to contracts identified in the cleaned resolved-binary contract table. This is an inclusion filter for the resolved-contract study population, not a contract-horizon analysis row definition.
 
+## Quote Observation Notes
+
+Phase 16 adds a separate quote-snapshot normalization command:
+
+```bash
+uv run python scripts/build_quote_observations.py --config configs/quotes.yaml
+```
+
+It reads immutable raw Kalshi market snapshots and writes
+`data/interim/kalshi/quote_observations.parquet`. Canonical quote fields are
+`contract_id`, `quote_ts`, `yes_bid`, `yes_ask`, `no_bid`, `no_ask`, raw cents
+columns, `quote_source`, and `depth_available`.
+
+Methodological assumptions:
+
+- `_fetched_at` is treated as the UTC quote-snapshot timestamp.
+- Bid/ask prices are explicit observed snapshot fields, not order-book depth.
+- `depth_available` is always `false` for the Becker public snapshots.
+- Edge simulations using these quotes remain simulated screens unless future
+  data supplies executable depth and capacity information.
+
 ## Snapshot Panel Notes
 
 The initial snapshot builder reads only cleaned interim data:
@@ -171,7 +192,7 @@ uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
 
 The output has at most one row per `contract_id x horizon_bucket`. It includes both last-trade and short-window VWAP fields on the same row. The primary `snapshot_price` uses VWAP when at least one trade is present in the VWAP window, otherwise it falls back to last trade.
 
-Canonical fields for downstream metrics include `contract_id`, `event_id`, `outcome`, `observed_outcome`, `horizon_bucket`, `horizon_timedelta_seconds`, `forecast_ts`, `resolution_ts`, `snapshot_price`, `snapshot_method`, `price_timestamp`, and `staleness_seconds`. Existing source-method fields such as `last_trade_ts`, `max_source_ts`, `vwap_volume`, and `vwap_trade_count` are preserved.
+Canonical fields for downstream metrics include `contract_id`, `event_id`, `outcome`, `observed_outcome`, `horizon_bucket`, `horizon_timedelta_seconds`, `forecast_ts`, raw `close_time`, normalized `resolution_ts`, `snapshot_price`, `snapshot_method`, `price_timestamp`, and `staleness_seconds`. Existing source-method fields such as `last_trade_ts`, `max_source_ts`, `vwap_volume`, and `vwap_trade_count` are preserved.
 
 Initial full horizon-grid output:
 

@@ -1,0 +1,11 @@
+| model_name | friction_tier | trade_side | selected_trade_count | final_cumulative_simulated_pnl | pnl_label |
+| --- | --- | --- | --- | --- | --- |
+| isotonic | fee_only | YES | 3283 | -31.1224 | simulated_assumption_dependent |
+| isotonic | fee_spread | YES | 2115 | -54.5712 | simulated_assumption_dependent |
+| isotonic | fee_spread_slippage | YES | 1137 | -29.6129 | simulated_assumption_dependent |
+| binned_reliability | fee_only | YES | 34605 | -180.9594 | simulated_assumption_dependent |
+| binned_reliability | fee_spread | YES | 27355 | -243.6094 | simulated_assumption_dependent |
+| binned_reliability | fee_spread_slippage | YES | 20876 | -221.4914 | simulated_assumption_dependent |
+| hierarchical_eb | fee_only | YES | 178035 | -4516.3388 | simulated_assumption_dependent |
+| hierarchical_eb | fee_spread | YES | 159848 | -5024.7717 | simulated_assumption_dependent |
+| hierarchical_eb | fee_spread_slippage | YES | 142160 | -5374.1650 | simulated_assumption_dependent |

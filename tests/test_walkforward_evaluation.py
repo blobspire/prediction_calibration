@@ -22,12 +22,20 @@ def test_walkforward_evaluation_writes_expected_artifacts(tmp_path: Path) -> Non
     summary = evaluate_walkforward(config)
 
     assert summary.fold_count == 1
-    assert summary.model_names == ["beta", "isotonic", "platt", "raw"]
+    assert summary.model_names == [
+        "beta",
+        "binned_reliability",
+        "hierarchical_eb",
+        "isotonic",
+        "platt",
+        "raw",
+    ]
     assert summary.event_family_overlap_count >= 1
     for artifact in summary.artifact_paths.values():
         assert Path(artifact).exists()
 
     predictions = pq.read_table(tmp_path / "artifacts" / "predictions.parquet").to_pandas()
+    assert "close_time" in predictions.columns
     expected_test_rows = {6, 7, 8, 9}
     for _, frame in predictions.groupby("model_name"):
         assert set(frame["row_id"]) == expected_test_rows
@@ -38,9 +46,19 @@ def test_walkforward_evaluation_writes_expected_artifacts(tmp_path: Path) -> Non
     assert predictions["predicted_probability"].between(0.001, 0.999).all()
 
     fits = pq.read_table(tmp_path / "artifacts" / "calibrator_fits.parquet").to_pandas()
-    assert set(fits["model_name"]) == {"raw", "platt", "beta", "isotonic"}
+    assert set(fits["model_name"]) == {
+        "raw",
+        "platt",
+        "beta",
+        "isotonic",
+        "binned_reliability",
+        "hierarchical_eb",
+    }
     assert set(fits["fit_row_count"]) == {4}
     assert set(fits["excluded_future_label_count"]) == {2}
+    hierarchical = fits[fits["model_name"] == "hierarchical_eb"].iloc[0]
+    assert bool(hierarchical["is_experimental"]) is True
+    assert "domain" in hierarchical["context_columns_json"]
 
     fold_metrics = pq.read_table(tmp_path / "artifacts" / "fold_metrics.parquet").to_pandas()
     assert {"brier_score", "log_loss", "expected_calibration_error"} <= set(
@@ -86,6 +104,17 @@ def test_split_panel_key_mismatch_fails(tmp_path: Path) -> None:
     config = _config(tmp_path, panel_path=panel_path, splits_path=splits_path)
 
     with pytest.raises(WalkForwardEvaluationError, match="key mismatch"):
+        evaluate_walkforward(config)
+
+
+def test_context_aware_calibrator_requires_context_columns(tmp_path: Path) -> None:
+    panel_path = tmp_path / "panel.parquet"
+    splits_path = tmp_path / "splits.parquet"
+    _panel().drop(columns=["domain"]).to_parquet(panel_path, index=False)
+    _splits().to_parquet(splits_path, index=False)
+    config = _config(tmp_path, panel_path=panel_path, splits_path=splits_path)
+
+    with pytest.raises(WalkForwardEvaluationError, match="modeling panel missing columns"):
         evaluate_walkforward(config)
 
 
@@ -149,7 +178,9 @@ def _panel() -> pd.DataFrame:
                 "contract_id": f"C{row_id}",
                 "event_family_id": event_families[row_id],
                 "horizon_name": "1d" if row_id % 2 == 0 else "7d",
+                "domain": "macro" if row_id % 2 == 0 else "sports",
                 "forecast_ts": pd.Timestamp(forecast, tz="UTC"),
+                "close_time": pd.Timestamp(resolution, tz="UTC"),
                 "resolution_ts": pd.Timestamp(resolution, tz="UTC"),
                 "raw_probability": probabilities[row_id],
                 "observed_outcome": outcomes[row_id],
@@ -197,7 +228,7 @@ columns:
   horizon_column: horizon_name
   event_family_column: event_family_id
 calibrators:
-  enabled: [raw, platt, beta, isotonic]
+  enabled: [raw, platt, beta, isotonic, binned_reliability, hierarchical_eb]
 prediction:
   epsilon: 0.001
 fit:
@@ -205,6 +236,14 @@ fit:
   max_iterations: 50
   tolerance: 0.00000001
   ridge: 0.000000001
+  reliability_bin_count: 5
+  reliability_min_bin_count: 1
+  reliability_prior_strength: 2.0
+  reliability_monotone: true
+  hierarchical_group_columns: [horizon_name, domain]
+  hierarchical_min_group_rows: 2
+  hierarchical_prior_strength: 2.0
+  hierarchical_backfit_iterations: 2
 evaluation:
   fit_splits: [train, validation]
   fit_label_policy: resolved_by_test_start

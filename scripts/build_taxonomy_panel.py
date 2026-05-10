@@ -51,6 +51,12 @@ def main() -> int:
         default=None,
         help="Output taxonomy summary JSON. Overrides config when provided.",
     )
+    parser.add_argument(
+        "--examples",
+        type=Path,
+        default=None,
+        help="Output taxonomy unknown/ambiguous examples parquet. Overrides config when provided.",
+    )
     args = parser.parse_args()
 
     config = load_taxonomy_config(args.config)
@@ -61,6 +67,7 @@ def main() -> int:
         output_panel_path=args.output or config.output_panel_path,
         audit_path=args.audit or config.audit_path,
         summary_path=args.summary or config.summary_path,
+        examples_path=args.examples or config.examples_path,
     )
     summary = build_taxonomy_panel(config)
     print(json.dumps(summary.__dict__, indent=2, sort_keys=True))

@@ -29,6 +29,19 @@ def main() -> int:
     )
     parser.add_argument("--panel", type=Path, default=None, help="Modeling panel override.")
     parser.add_argument(
+        "--quotes",
+        type=Path,
+        default=None,
+        help="Quote-observation artifact override.",
+    )
+    parser.add_argument(
+        "--execution-mode",
+        type=str,
+        default=None,
+        choices=("transaction_proxy", "quote_snapshot_proxy"),
+        help="Entry-price mode override.",
+    )
+    parser.add_argument(
         "--artifact-dir",
         type=Path,
         default=None,
@@ -42,6 +55,8 @@ def main() -> int:
         config,
         predictions_path=args.predictions or config.predictions_path,
         panel_path=args.panel or config.panel_path,
+        quote_observations_path=args.quotes or config.quote_observations_path,
+        execution_mode=args.execution_mode or config.execution_mode,
         artifact_dir=args.artifact_dir or config.artifact_dir,
         limit_rows=args.limit_rows if args.limit_rows is not None else config.limit_rows,
     )

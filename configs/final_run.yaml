@@ -1,0 +1,103 @@
+inputs:
+  raw_repo_path: data/raw/becker_prediction_market_analysis
+  final_audit_summary_path: data/artifacts/final_audit/summary.json
+  final_audit_checks_path: data/artifacts/final_audit/audit_checks.parquet
+  final_audit_phase_status_path: data/artifacts/final_audit/phase_status.parquet
+  final_audit_inventory_path: data/artifacts/final_audit/artifact_inventory.parquet
+  artifact_paths:
+    interim_summary: data/interim/kalshi/summary.json
+    quote_summary: data/interim/kalshi/quote_observations_summary.json
+    snapshot_summary: data/processed/contract_horizon_panel_summary.json
+    taxonomy_summary: data/processed/contract_horizon_taxonomy_summary.json
+    modeling_summary: data/processed/modeling_panel_summary.json
+    split_summary: data/processed/walkforward_split_summary.json
+    raw_baseline_summary: data/artifacts/raw_baseline/summary.json
+    walkforward_summary: data/artifacts/walkforward/summary.json
+    inference_summary: data/artifacts/inference/summary.json
+    decomposition_summary: data/artifacts/decomposition/summary.json
+    edge_summary: data/artifacts/edge_sim/summary.json
+    robustness_summary: data/artifacts/robustness/summary.json
+    figure_manifest: paper/figures/figure_manifest.json
+    table_manifest: paper/tables/table_manifest.json
+  config_paths:
+    - configs/sampling.yaml
+    - configs/taxonomy.yaml
+    - configs/features.yaml
+    - configs/metrics.yaml
+    - configs/validation.yaml
+    - configs/models.yaml
+    - configs/inference.yaml
+    - configs/backtest.yaml
+    - configs/quotes.yaml
+    - configs/decomposition.yaml
+    - configs/reporting.yaml
+    - configs/robustness.yaml
+    - configs/replication_small.yaml
+    - configs/final_audit.yaml
+    - configs/final_run.yaml
+
+outputs:
+  registry_dir: data/artifacts/final_run_registry
+  readiness_doc_path: docs/final_readiness_audit.md
+
+final_run:
+  run_label: phase17_readiness_cleanup
+  artifact_run_label: full
+  raw_manifest_mode: metadata_only
+  max_artifact_hash_bytes: 250000000
+  full_run_command:
+    - uv run python scripts/build_interim_kalshi.py --raw-kalshi-path data/raw/becker_prediction_market_analysis/data/kalshi --output-dir data/interim/kalshi
+    - uv run python scripts/build_quote_observations.py --config configs/quotes.yaml
+    - uv run python scripts/build_snapshot_panel.py --config configs/sampling.yaml
+    - uv run python scripts/build_taxonomy_panel.py --config configs/taxonomy.yaml
+    - uv run python scripts/build_feature_panel.py --config configs/features.yaml
+    - uv run python scripts/evaluate_raw.py --config configs/metrics.yaml
+    - uv run python scripts/plot_raw_baseline.py --config configs/figures.yaml
+    - uv run python scripts/audit_raw_baseline.py --config configs/raw_baseline_audit.yaml
+    - uv run python scripts/build_walkforward_splits.py --config configs/validation.yaml
+    - uv run python scripts/fit_walkforward.py --config configs/models.yaml
+    - uv run python scripts/run_inference.py --config configs/inference.yaml
+    - uv run python scripts/run_edge_sim.py --config configs/backtest.yaml
+    - uv run python scripts/evaluate_decomposition.py --config configs/decomposition.yaml
+    - uv run python scripts/make_figures.py --config configs/reporting.yaml
+    - uv run python scripts/make_tables.py --config configs/reporting.yaml
+    - uv run python scripts/run_robustness.py --config configs/robustness.yaml
+    - uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml
+    - uv run python scripts/audit_final_artifacts.py --config configs/final_audit.yaml
+    - uv run python scripts/build_final_run_registry.py --config configs/final_run.yaml
+  small_sample_command: uv run python scripts/run_small_sample_pipeline.py --config configs/replication_small.yaml
+  claim_boundaries:
+    - Final claims use contract-horizon rows with equal-contract or explicitly labeled equal-event-family aggregation.
+    - Domain/category claims require taxonomy confidence and ambiguity review.
+    - Edge outputs remain simulated expected-value screens, not executable trading profit.
+    - Current negative simulated PnL is a valid result and should not be tuned away.
+
+checks:
+  run_by_default: true
+  commands:
+    - name: ruff
+      command: [uv, run, ruff, check, .]
+      required: true
+      scope: repository lint
+    - name: pytest
+      command: [uv, run, pytest]
+      required: true
+      scope: full test suite
+    - name: mypy_scoped
+      command:
+        - uv
+        - run
+        - mypy
+        - src/predmkt/edge
+        - src/predmkt/io/kalshi_quotes.py
+        - src/predmkt/plots/manuscript.py
+        - src/predmkt/reports/manuscript.py
+        - src/predmkt/reports/final_audit.py
+        - src/predmkt/reports/final_readiness.py
+      required: true
+      scope: typed Phase 16-17 surface
+      note: Full `uv run mypy src` is not the CI gate yet because legacy PyArrow/Pandas-heavy modules still need typing cleanup.
+    - name: final_audit
+      command: [uv, run, python, scripts/audit_final_artifacts.py, --config, configs/final_audit.yaml]
+      required: true
+      scope: saved artifact audit

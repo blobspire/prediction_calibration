@@ -7,7 +7,9 @@ import pandas as pd
 import pytest
 
 from predmkt.reports.robustness import (
+    FullSnapshotVariant,
     RobustnessError,
+    full_snapshot_variant_commands,
     load_robustness_config,
     run_robustness,
 )
@@ -27,13 +29,46 @@ def test_robustness_config_and_outputs(tmp_path: Path) -> None:
     assert set(snapshot["snapshot_method"]) == {"last_trade", "vwap"}
 
     domain = pd.read_parquet(tmp_path / "robustness" / "domain_exclusion_status.parquet")
-    assert domain["status"].tolist() == ["not_applicable"]
-    assert domain["reason"].tolist() == ["domain_and_category_are_all_unknown"]
+    assert set(domain["status"]) == {"not_applicable"}
+    assert set(domain["reason"]) == {"domain_and_category_are_all_unknown"}
 
     friction = pd.read_parquet(
         tmp_path / "robustness" / "friction_assumption_sensitivity.parquet"
     )
     assert set(friction["scenario_name"]) == {"base", "strict"}
+    staleness = pd.read_parquet(tmp_path / "robustness" / "staleness_filter_sensitivity.parquet")
+    counts = staleness.groupby("filter_name")["row_count"].sum().to_dict()
+    assert counts["all_rows"] >= counts["staleness_le_25s"] >= counts["staleness_le_15s"]
+
+    weighting = pd.read_parquet(tmp_path / "robustness" / "weighting_sensitivity.parquet")
+    assert {"equal_contract", "equal_event_family", "trade_weighted"} <= set(
+        weighting["aggregation_mode"]
+    )
+    weighted = weighting[weighting["aggregation_mode"] == "trade_weighted"]
+    assert set(weighted["non_confirmatory"]) == {True}
+    equal_contract = weighting[
+        (weighting["aggregation_mode"] == "equal_contract")
+        & (weighting["model_name"] == "raw")
+        & (weighting["horizon_name"] == "1h")
+    ]["brier_score"].iloc[0]
+    trade_weighted = weighting[
+        (weighting["aggregation_mode"] == "trade_weighted")
+        & (weighting["model_name"] == "raw")
+        & (weighting["horizon_name"] == "1h")
+    ]["brier_score"].iloc[0]
+    assert equal_contract != trade_weighted
+
+    purged = pd.read_parquet(
+        tmp_path / "robustness" / "event_family_exclusion_sensitivity.parquet"
+    )
+    assert {"report_only_all_test_rows", "drop_overlapping_event_families"} <= set(
+        purged["policy_name"]
+    )
+    dropped = purged[purged["policy_name"] == "drop_overlapping_event_families"]
+    assert dropped["excluded_row_count"].max() > 0
+
+    full_runs = pd.read_parquet(tmp_path / "robustness" / "full_snapshot_variant_runs.parquet")
+    assert full_runs["status"].tolist() == ["not_run"]
     assert (tmp_path / "robustness" / "summary.json").exists()
     assert (tmp_path / "tables" / "snapshot_method_slices.csv").exists()
 
@@ -51,6 +86,40 @@ def test_liquidity_missing_column_fails_clearly(tmp_path: Path) -> None:
         run_robustness(config, run_snapshot_variants=False)
 
 
+def test_full_snapshot_variant_command_construction(tmp_path: Path) -> None:
+    config = load_robustness_config(_write_fixture(tmp_path))
+    variant = FullSnapshotVariant(
+        name="short_window_vwap_primary",
+        snapshot_methods=("vwap", "last_trade"),
+        vwap_window="5m",
+        max_staleness="7d",
+        limit_contracts=25,
+    )
+
+    commands = full_snapshot_variant_commands(
+        config,
+        variant,
+        tmp_path / "processed_variant",
+        tmp_path / "artifact_variant",
+    )
+
+    assert [command["name"] for command in commands] == [
+        "snapshot",
+        "taxonomy",
+        "features",
+        "splits",
+        "walkforward",
+        "inference",
+        "edge",
+        "decomposition",
+    ]
+    snapshot_cmd = commands[0]["cmd"]
+    assert "--snapshot-methods" in snapshot_cmd
+    assert "vwap,last_trade" in snapshot_cmd
+    assert "--limit-contracts" in snapshot_cmd
+    assert "25" in snapshot_cmd
+
+
 def _write_fixture(tmp_path: Path, *, include_liquidity: bool = True) -> Path:
     panel_path = tmp_path / "panel.parquet"
     walkforward_dir = tmp_path / "walkforward"
@@ -62,7 +131,7 @@ def _write_fixture(tmp_path: Path, *, include_liquidity: bool = True) -> Path:
     base_panel = pd.DataFrame(
         {
             "contract_id": [f"C{i}" for i in range(4)],
-            "event_family_id": [f"E{i}" for i in range(4)],
+            "event_family_id": ["E0", "E1", "E0", "E3"],
             "horizon_name": ["1h", "1h", "close", "close"],
             "forecast_ts": forecast,
             "resolution_ts": forecast + pd.Timedelta(hours=2),
@@ -73,6 +142,9 @@ def _write_fixture(tmp_path: Path, *, include_liquidity: bool = True) -> Path:
             "cumulative_volume_to_forecast": [10.0, 200.0, 300.0, 400.0],
             "domain": ["unknown"] * 4,
             "category": ["unknown"] * 4,
+            "is_sports": [False, True, False, False],
+            "taxonomy_confidence": ["low", "high", "medium", "high"],
+            "taxonomy_ambiguous": [False, False, True, False],
         }
     )
     if include_liquidity:
@@ -98,6 +170,14 @@ def _write_fixture(tmp_path: Path, *, include_liquidity: bool = True) -> Path:
                 }
             )
     pd.DataFrame(predictions).to_parquet(walkforward_dir / "predictions.parquet", index=False)
+    pd.DataFrame(
+        {
+            "fold_id": ["fold_2024_01"] * 4,
+            "split": ["train", "test", "test", "validation"],
+            "row_id": [0, 1, 2, 3],
+            "event_family_id": ["E0", "E1", "E0", "E3"],
+        }
+    ).to_parquet(tmp_path / "splits.parquet", index=False)
     (walkforward_dir / "summary.json").write_text("{}", encoding="utf-8")
     (edge_dir / "summary.json").write_text("{}", encoding="utf-8")
 
@@ -154,8 +234,15 @@ inputs:
   panel_path: {panel_path}
   walkforward_artifact_dir: {walkforward_dir}
   edge_artifact_dir: {edge_dir}
+  splits_path: {tmp_path / "splits.parquet"}
   backtest_config_path: {backtest_path}
   sampling_config_path: configs/sampling.yaml
+  taxonomy_config_path: configs/taxonomy.yaml
+  features_config_path: configs/features.yaml
+  validation_config_path: configs/validation.yaml
+  models_config_path: configs/models.yaml
+  inference_config_path: configs/inference.yaml
+  decomposition_config_path: configs/decomposition.yaml
   contracts_path: data/interim/kalshi/contracts.parquet
   price_observations_path: data/interim/kalshi/price_observations.parquet
 outputs:
@@ -173,8 +260,12 @@ columns:
   liquidity_column: public_liquidity_proxy
   cumulative_volume_column: cumulative_volume_to_forecast
   staleness_column: price_staleness_seconds
+  trade_weight_column: cumulative_volume_to_forecast
   domain_column: domain
   category_column: category
+  is_sports_column: is_sports
+  taxonomy_confidence_column: taxonomy_confidence
+  taxonomy_ambiguous_column: taxonomy_ambiguous
 metrics:
   log_loss_epsilon: 0.000001
   reliability_bin_count: 5
@@ -192,10 +283,27 @@ robustness:
     - name: volume_ge_100
       min_liquidity_proxy:
       min_cumulative_volume: 100
+  staleness_filters:
+    - name: all_rows
+      max_staleness_seconds:
+    - name: staleness_le_25s
+      max_staleness_seconds: 25
+    - name: staleness_le_15s
+      max_staleness_seconds: 15
+  weighting_sensitivity:
+    modes: [equal_contract, equal_event_family, trade_weighted]
+    trade_weight_column: cumulative_volume_to_forecast
+  event_family_purging:
+    enabled: true
+    fit_splits: [train, validation]
   domain_exclusions:
     - name: exclude_unknown_domain
       exclude_domains: [unknown]
       exclude_categories: []
+    - name: exclude_sports
+      exclude_domains: []
+      exclude_categories: []
+      exclude_sports: true
   friction_scenarios:
     - name: base
       fee_rate: 0.07
@@ -220,6 +328,17 @@ robustness:
     variants:
       - name: last_trade_primary
         snapshot_methods: [last_trade, vwap]
+  full_snapshot_variants:
+    enabled: false
+    run_downstream: true
+    limit_contracts: 10
+    output_dir: {tmp_path / "full_snapshot_variants"}
+    processed_dir: {tmp_path / "processed_full_snapshot_variants"}
+    variants:
+      - name: short_window_vwap_primary
+        snapshot_methods: [vwap, last_trade]
+        vwap_window: 5m
+        max_staleness: 7d
 """,
         encoding="utf-8",
     )

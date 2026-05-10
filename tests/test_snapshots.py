@@ -313,6 +313,7 @@ def _contracts_table() -> pa.Table:
             "contract_id": ["A"],
             "event_id": ["E1"],
             "outcome": ["yes"],
+            "close_time": _ts_array([datetime(2024, 1, 10, tzinfo=UTC)]),
             "resolution_ts": _ts_array([datetime(2024, 1, 10, tzinfo=UTC)]),
         }
     )
@@ -376,6 +377,7 @@ def _panel_table(
             "horizon_bucket": ["1d"],
             "horizon_timedelta_seconds": [86_400],
             "forecast_ts": _ts_array([datetime(2024, 1, 9, tzinfo=UTC)]),
+            "close_time": _ts_array([datetime(2024, 1, 10, tzinfo=UTC)]),
             "resolution_ts": _ts_array([datetime(2024, 1, 10, tzinfo=UTC)]),
             "snapshot_price": [0.4],
             "snapshot_method": ["last_trade"],
@@ -398,6 +400,7 @@ def _canonical_columns() -> tuple[str, ...]:
         "horizon_bucket",
         "horizon_timedelta_seconds",
         "forecast_ts",
+        "close_time",
         "resolution_ts",
         "snapshot_price",
         "snapshot_method",

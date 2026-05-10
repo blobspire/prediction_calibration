@@ -1,9 +1,13 @@
 {
   "effective_config": {
     "config_path": "configs/reporting.yaml",
-    "config_sha256": "d532ac0b5b8b73ff8851ca670109d7bc0e83c19a364a0c72d4ca041d83254164",
+    "config_sha256": "1e5cb179b8ec565d9997e5b3e986bf6c019592bef8a3bb825c8d2ba6c540469f",
     "inputs": {
+      "decomposition_artifact_dir": "data/artifacts/decomposition",
       "edge_artifact_dir": "data/artifacts/edge_sim",
+      "inference_artifact_dir": "data/artifacts/inference",
+      "modeling_panel_path": "data/processed/modeling_panel.parquet",
+      "processed_dir": "data/processed",
       "raw_baseline_artifact_dir": "data/artifacts/raw_baseline",
       "walkforward_artifact_dir": "data/artifacts/walkforward"
     },
@@ -36,7 +40,9 @@
         "raw",
         "platt",
         "beta",
-        "isotonic"
+        "isotonic",
+        "binned_reliability",
+        "hierarchical_eb"
       ],
       "reliability_bin_count": 10,
       "reliability_min_bin_count": 30,
@@ -49,15 +55,30 @@
   },
   "figure_dir": "paper/figures",
   "figure_paths": {
+    "calibration_gain_over_time": [
+      "paper/figures/manuscript_calibration_gain_over_time.png",
+      "paper/figures/manuscript_calibration_gain_over_time.svg",
+      "paper/figures/manuscript_calibration_gain_over_time.pdf"
+    ],
     "calibration_slope_heatmap": [
       "paper/figures/manuscript_calibration_slope_heatmap.png",
       "paper/figures/manuscript_calibration_slope_heatmap.svg",
       "paper/figures/manuscript_calibration_slope_heatmap.pdf"
     ],
+    "domain_reliability_exploratory": [
+      "paper/figures/manuscript_domain_reliability_exploratory.png",
+      "paper/figures/manuscript_domain_reliability_exploratory.svg",
+      "paper/figures/manuscript_domain_reliability_exploratory.pdf"
+    ],
     "edge_friction_sensitivity": [
       "paper/figures/manuscript_edge_friction_sensitivity.png",
       "paper/figures/manuscript_edge_friction_sensitivity.svg",
       "paper/figures/manuscript_edge_friction_sensitivity.pdf"
+    ],
+    "edge_simulated_pnl": [
+      "paper/figures/manuscript_edge_simulated_pnl.png",
+      "paper/figures/manuscript_edge_simulated_pnl.svg",
+      "paper/figures/manuscript_edge_simulated_pnl.pdf"
     ],
     "reliability_by_horizon_model": [
       "paper/figures/manuscript_reliability_by_horizon_model.png",
@@ -69,6 +90,11 @@
       "paper/figures/manuscript_reliability_overall.svg",
       "paper/figures/manuscript_reliability_overall.pdf"
     ],
+    "sample_construction_flowchart": [
+      "paper/figures/manuscript_sample_construction_flowchart.png",
+      "paper/figures/manuscript_sample_construction_flowchart.svg",
+      "paper/figures/manuscript_sample_construction_flowchart.pdf"
+    ],
     "score_comparison": [
       "paper/figures/manuscript_score_comparison.png",
       "paper/figures/manuscript_score_comparison.svg",
@@ -77,16 +103,37 @@
   },
   "limitations": [
     "Manuscript outputs consume saved result artifacts and do not recompute core models.",
-    "Domain/category manuscript outputs are omitted while taxonomy coverage remains unknown.",
+    "Domain/category manuscript outputs remain exploratory because taxonomy coverage includes lower-confidence title rules plus ambiguous and unknown rows.",
     "Edge outputs are simulated expected-value screens, not executable trading profits.",
+    "Phase 16 quote snapshots do not include order-book depth, so capacity and PnL remain assumption-dependent.",
+    "Score intervals and p-values use event-family clustered inference artifacts.",
+    "Murphy decomposition uses binned saved predictions and reports the binning residual.",
     "Artifact run label is full."
   ],
   "source_artifacts": {
+    "decomposition_murphy_bins": "data/artifacts/decomposition/murphy_bins.parquet",
+    "decomposition_murphy_decomposition": "data/artifacts/decomposition/murphy_decomposition.parquet",
+    "decomposition_summary": "data/artifacts/decomposition/summary.json",
+    "edge_capacity_summary": "data/artifacts/edge_sim/capacity_summary.parquet",
+    "edge_executability_audit": "data/artifacts/edge_sim/executability_audit.parquet",
+    "edge_fee_schedule_audit": "data/artifacts/edge_sim/fee_schedule_audit.parquet",
+    "edge_simulated_pnl": "data/artifacts/edge_sim/simulated_pnl.parquet",
     "edge_summary": "data/artifacts/edge_sim/summary.json",
     "edge_summary_by_model_tier": "data/artifacts/edge_sim/edge_summary_by_model_tier.parquet",
+    "edge_summary_by_side_model_tier": "data/artifacts/edge_sim/edge_summary_by_side_model_tier.parquet",
     "edge_summary_by_tier": "data/artifacts/edge_sim/edge_summary_by_tier.parquet",
+    "inference_calibration_intervals": "data/artifacts/inference/calibration_intervals.parquet",
+    "inference_multiple_comparison_adjustments": "data/artifacts/inference/multiple_comparison_adjustments.parquet",
+    "inference_paired_score_differences": "data/artifacts/inference/paired_score_differences.parquet",
+    "inference_score_intervals": "data/artifacts/inference/score_intervals.parquet",
+    "inference_summary": "data/artifacts/inference/summary.json",
+    "modeling_panel": "data/processed/modeling_panel.parquet",
+    "modeling_summary": "data/processed/modeling_panel_summary.json",
     "raw_baseline_reliability_bins": "data/artifacts/raw_baseline/reliability_bins.parquet",
     "raw_baseline_summary": "data/artifacts/raw_baseline/summary.json",
+    "snapshot_summary": "data/processed/contract_horizon_panel_summary.json",
+    "split_summary": "data/processed/walkforward_split_summary.json",
+    "taxonomy_summary": "data/processed/contract_horizon_taxonomy_summary.json",
     "walkforward_aggregate_metrics": "data/artifacts/walkforward/aggregate_metrics.parquet",
     "walkforward_fold_metrics": "data/artifacts/walkforward/fold_metrics.parquet",
     "walkforward_predictions": "data/artifacts/walkforward/predictions.parquet",

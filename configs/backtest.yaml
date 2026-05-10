@@ -1,6 +1,7 @@
 inputs:
   predictions_path: data/artifacts/walkforward/predictions.parquet
   panel_path: data/processed/modeling_panel.parquet
+  quote_observations_path: data/interim/kalshi/quote_observations.parquet
 
 outputs:
   artifact_dir: data/artifacts/edge_sim
@@ -22,14 +23,32 @@ columns:
   cumulative_volume_column: cumulative_volume_to_forecast
 
 screen:
+  execution_mode: transaction_proxy
   trade_side: yes_only
   allow_synthetic_no: false
   min_net_edge: 0.02
   limit_rows:
 
+quote:
+  max_staleness_seconds:
+  min_entry_price: 0.01
+  max_entry_price: 0.99
+
 fee:
   formula: kalshi_proxy
   fee_rate: 0.07
+  schedule:
+    - id: kalshi_proxy_default
+      start_date: "1900-01-01"
+      end_date:
+      formula: kalshi_proxy
+      fee_rate: 0.07
+      source_status: proxy_assumption
+      source_note: "Configurable fee proxy; not a documented historical exchange billing audit."
+
+capacity:
+  assumed_contracts: 1.0
+  source: fixed_config_assumption_no_order_book_depth
 
 capital_lockup:
   enabled: true

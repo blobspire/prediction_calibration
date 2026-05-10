@@ -8,10 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from predmkt.calibration.base import BaseCalibrator, CalibratorConfig
 from predmkt.calibration.beta import BetaCalibrator
+from predmkt.calibration.binned import BinnedReliabilityCalibrator
+from predmkt.calibration.hierarchical import HierarchicalEBCalibrator
 from predmkt.calibration.isotonic import IsotonicCalibrator
 from predmkt.calibration.logistic import PlattCalibrator
 from predmkt.calibration.raw import RawCalibrator
@@ -42,7 +44,7 @@ class ModelsConfig:
     calibration_min_rows: int
     calibration_max_iterations: int
     calibration_tolerance: float
-    metric_groupings: tuple[dict[str, tuple[str, ...]], ...]
+    metric_groupings: tuple[dict[str, Any], ...]
     config_path: Path | None = None
     config_sha256: str | None = None
 
@@ -55,6 +57,10 @@ _REGISTRY: dict[str, CalibratorFactory] = {
     "logistic": PlattCalibrator,
     "beta": BetaCalibrator,
     "isotonic": IsotonicCalibrator,
+    "binned_reliability": BinnedReliabilityCalibrator,
+    "reliability_bin": BinnedReliabilityCalibrator,
+    "hierarchical_eb": HierarchicalEBCalibrator,
+    "hierarchical": HierarchicalEBCalibrator,
 }
 
 
@@ -125,6 +131,17 @@ def load_models_config(path: Path) -> ModelsConfig:
             max_iterations=int(_required(fit, "max_iterations")),
             tolerance=float(_required(fit, "tolerance")),
             ridge=float(_required(fit, "ridge")),
+            reliability_bin_count=int(fit.get("reliability_bin_count", 10)),
+            reliability_min_bin_count=int(fit.get("reliability_min_bin_count", 30)),
+            reliability_prior_strength=float(fit.get("reliability_prior_strength", 20.0)),
+            reliability_monotone=bool(fit.get("reliability_monotone", True)),
+            hierarchical_group_columns=tuple(
+                str(column)
+                for column in fit.get("hierarchical_group_columns", ["horizon_name", "domain"])
+            ),
+            hierarchical_min_group_rows=int(fit.get("hierarchical_min_group_rows", 50)),
+            hierarchical_prior_strength=float(fit.get("hierarchical_prior_strength", 100.0)),
+            hierarchical_backfit_iterations=int(fit.get("hierarchical_backfit_iterations", 3)),
         ),
         fit_splits=fit_splits,
         fit_label_policy=str(_required(evaluation, "fit_label_policy")),
@@ -165,4 +182,6 @@ def _required(raw: dict[str, Any], key: str) -> Any:
 def _optional_int(value: object) -> int | None:
     if value is None:
         return None
-    return int(value)
+    if isinstance(value, int):
+        return value
+    return int(str(value))

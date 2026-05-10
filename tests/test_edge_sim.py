@@ -10,6 +10,7 @@ import pytest
 from predmkt.edge import (
     EdgeSimulationConfig,
     EdgeSimulationError,
+    FeeScheduleEntry,
     FrictionTier,
     capital_lockup_cost,
     kalshi_proxy_taker_fee,
@@ -96,6 +97,123 @@ def test_no_synthetic_no_candidates_are_generated(tmp_path: Path) -> None:
         run_edge_simulation(replace(config, allow_synthetic_no=True))
 
 
+def test_quote_mode_uses_only_past_quotes_and_explicit_side_prices(tmp_path: Path) -> None:
+    config = replace(
+        _config(tmp_path),
+        execution_mode="quote_snapshot_proxy",
+        trade_side="yes_and_no",
+        quote_observations_path=_write_quotes(tmp_path),
+        max_quote_staleness_seconds=3600.0,
+        min_entry_price=0.01,
+        max_entry_price=0.99,
+        capital_lockup_enabled=False,
+        tiers=(FrictionTier("fee_only", 0.0, 0.0),),
+    )
+
+    summary = run_edge_simulation(config)
+
+    candidates = pd.read_parquet(Path(summary.artifact_paths["edge_candidates"]))
+    assert set(candidates["trade_side"]) == {"YES", "NO"}
+    yes = candidates[candidates["trade_side"] == "YES"].sort_values("row_id")
+    no = candidates[candidates["trade_side"] == "NO"].sort_values("row_id")
+    assert yes["entry_price"].tolist() == pytest.approx([0.52, 0.82, 0.42])
+    assert no["entry_price"].tolist() == pytest.approx([0.49, 0.19, 0.59])
+    assert set(no["entry_price_source"]) == {"explicit_no_ask_quote"}
+    assert (
+        pd.to_datetime(candidates["quote_ts"], utc=True)
+        <= pd.to_datetime(candidates["forecast_ts"], utc=True)
+    ).all()
+
+
+def test_quote_mode_excludes_missing_stale_and_out_of_bounds_quotes(tmp_path: Path) -> None:
+    config = replace(
+        _config(tmp_path),
+        execution_mode="quote_snapshot_proxy",
+        quote_observations_path=_write_quotes(
+            tmp_path,
+            stale_second=True,
+            full_price_third=True,
+        ),
+        max_quote_staleness_seconds=60.0,
+        min_entry_price=0.01,
+        max_entry_price=0.99,
+        capital_lockup_enabled=False,
+        tiers=(FrictionTier("fee_only", 0.0, 0.0),),
+    )
+
+    summary = run_edge_simulation(config)
+
+    excluded = pd.read_parquet(Path(summary.artifact_paths["excluded_rows"]))
+    reasons = set(excluded["exclusion_reason"])
+    assert "stale_quote" in reasons
+    assert "entry_price_above_max" in reasons
+
+
+def test_no_side_requires_explicit_quote_mode(tmp_path: Path) -> None:
+    config = replace(_config(tmp_path), trade_side="yes_and_no")
+
+    with pytest.raises(EdgeSimulationError, match="NO-side screening requires"):
+        run_edge_simulation(config)
+
+
+def test_fee_schedule_versions_are_selected_by_forecast_date(tmp_path: Path) -> None:
+    config = replace(
+        _config(tmp_path, capital_enabled=False, tiers=(FrictionTier("fee_only", 0.0, 0.0),)),
+        fee_schedule=(
+            FeeScheduleEntry(
+                "early",
+                "2023-01-01",
+                "2024-01-15",
+                "kalshi_proxy",
+                0.01,
+                "proxy_assumption",
+                "early proxy",
+            ),
+            FeeScheduleEntry(
+                "late",
+                "2024-01-15",
+                None,
+                "kalshi_proxy",
+                0.02,
+                "proxy_assumption",
+                "late proxy",
+            ),
+        ),
+    )
+
+    summary = run_edge_simulation(config)
+
+    candidates = pd.read_parquet(Path(summary.artifact_paths["edge_candidates"]))
+    assert set(candidates["fee_schedule_id"]) == {"early"}
+    fee_audit = pd.read_parquet(Path(summary.artifact_paths["fee_schedule_audit"]))
+    assert set(fee_audit["fee_schedule_id"]) == {"early", "late"}
+
+
+def test_capacity_and_simulated_pnl_artifacts_are_written(tmp_path: Path) -> None:
+    config = replace(
+        _config(tmp_path, min_net_edge=0.0, capital_enabled=False),
+        assumed_contracts=2.0,
+        capacity_source="fixed_config_assumption_no_order_book_depth",
+    )
+
+    summary = run_edge_simulation(config)
+
+    for key in (
+        "executability_audit",
+        "fee_schedule_audit",
+        "capacity_summary",
+        "simulated_pnl",
+        "edge_summary_by_side_model_tier",
+    ):
+        assert Path(summary.artifact_paths[key]).exists()
+    pnl = pd.read_parquet(Path(summary.artifact_paths["simulated_pnl"]))
+    if not pnl.empty:
+        assert set(pnl["pnl_label"]) == {"simulated_assumption_dependent"}
+        grouped = pnl.groupby(["model_name", "friction_tier", "trade_side"], observed=True)
+        for _, frame in grouped:
+            assert frame["cumulative_simulated_pnl"].notna().all()
+
+
 def test_filters_write_excluded_rows(tmp_path: Path) -> None:
     config = replace(_config(tmp_path), max_staleness_seconds=60.0)
 
@@ -130,7 +248,12 @@ def test_run_edge_sim_script_writes_expected_artifacts(tmp_path: Path) -> None:
         "edge_candidates.parquet",
         "edge_summary_by_tier.parquet",
         "edge_summary_by_model_tier.parquet",
+        "edge_summary_by_side_model_tier.parquet",
         "excluded_rows.parquet",
+        "executability_audit.parquet",
+        "fee_schedule_audit.parquet",
+        "capacity_summary.parquet",
+        "simulated_pnl.parquet",
         "summary.json",
     ):
         assert (tmp_path / "artifacts" / artifact).exists()
@@ -246,11 +369,39 @@ def _panel() -> pd.DataFrame:
     return panel
 
 
+def _write_quotes(
+    tmp_path: Path,
+    *,
+    stale_second: bool = False,
+    full_price_third: bool = False,
+) -> Path:
+    quote_path = tmp_path / "quotes.parquet"
+    pd.DataFrame(
+        {
+            "contract_id": ["C0", "C0", "C1", "C2"],
+            "quote_ts": [
+                pd.Timestamp("2023-12-31 23:00", tz="UTC"),
+                pd.Timestamp("2024-01-01 00:00", tz="UTC"),
+                pd.Timestamp("2023-12-31 00:00" if stale_second else "2024-01-01 00:00", tz="UTC"),
+                pd.Timestamp("2024-01-01 00:00", tz="UTC"),
+            ],
+            "yes_bid": [0.48, 0.50, 0.78, 0.38],
+            "yes_ask": [0.51, 0.52, 0.82, 1.00 if full_price_third else 0.42],
+            "no_bid": [0.47, 0.48, 0.18, 0.58],
+            "no_ask": [0.50, 0.49, 0.19, 0.59],
+            "quote_source": ["fixture"] * 4,
+            "depth_available": [False] * 4,
+        }
+    ).to_parquet(quote_path, index=False)
+    return quote_path
+
+
 def _config_text(tmp_path: Path, predictions_path: Path, panel_path: Path) -> str:
     return f"""
 inputs:
   predictions_path: {predictions_path}
   panel_path: {panel_path}
+  quote_observations_path:
 outputs:
   artifact_dir: {tmp_path / "artifacts"}
 columns:
@@ -269,13 +420,21 @@ columns:
   liquidity_column: public_liquidity_proxy
   cumulative_volume_column: cumulative_volume_to_forecast
 screen:
+  execution_mode: transaction_proxy
   trade_side: yes_only
   allow_synthetic_no: false
   min_net_edge: 0.02
   limit_rows:
+quote:
+  max_staleness_seconds:
+  min_entry_price: 0.0
+  max_entry_price: 1.0
 fee:
   formula: kalshi_proxy
   fee_rate: 0.07
+capacity:
+  assumed_contracts: 1.0
+  source: fixed_config_assumption
 capital_lockup:
   enabled: true
   annual_rate: 0.05

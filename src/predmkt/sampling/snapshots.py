@@ -102,6 +102,7 @@ REQUIRED_SNAPSHOT_COLUMNS = (
     "horizon_bucket",
     "horizon_timedelta_seconds",
     "forecast_ts",
+    "close_time",
     "resolution_ts",
     "snapshot_price",
     "snapshot_method",
@@ -325,6 +326,7 @@ def _create_candidates(con: duckdb.DuckDBPyConnection, config: SnapshotBuildConf
             c.contract_id,
             c.event_id,
             c.outcome,
+            c.close_time,
             c.resolution_ts,
             h.horizon_bucket,
             h.horizon_timedelta_seconds,
@@ -458,6 +460,7 @@ def _create_panel(con: duckdb.DuckDBPyConnection, config: SnapshotBuildConfig) -
             date_diff('second', c.forecast_ts - c.vwap_window_interval, c.forecast_ts)
                 AS horizon_vwap_window_seconds,
             c.forecast_ts,
+            c.close_time,
             c.resolution_ts,
             lt.last_trade_price,
             lt.last_trade_price_cents,

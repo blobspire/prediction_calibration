@@ -50,21 +50,57 @@ def main() -> int:
     parser.add_argument(
         "--skip-snapshot-variants",
         action="store_true",
-        help="Skip small-sample alternate snapshot reruns.",
+        help="Skip legacy small-sample alternate snapshot reruns.",
+    )
+    parser.add_argument(
+        "--skip-full-snapshot-variants",
+        action="store_true",
+        help="Skip Phase 15 full downstream alternate snapshot reruns.",
+    )
+    parser.add_argument(
+        "--variant-limit-contracts",
+        type=int,
+        default=None,
+        help="Optional deterministic contract limit for full snapshot variants.",
     )
     args = parser.parse_args()
 
     config = load_robustness_config(args.config)
+    artifact_dir = args.artifact_dir or config.artifact_dir
+    full_variant_output_dir = config.full_snapshot_variant_output_dir
+    full_variant_processed_dir = config.full_snapshot_variant_processed_dir
+    if args.artifact_dir is not None:
+        full_variant_output_dir = artifact_dir / "full_snapshot_variants"
+        try:
+            relative_artifact_dir = artifact_dir.relative_to(Path("data/artifacts"))
+            full_variant_processed_dir = (
+                Path("data/processed") / relative_artifact_dir / "full_snapshot_variants"
+            )
+        except ValueError:
+            full_variant_processed_dir = artifact_dir / "processed_full_snapshot_variants"
     config = replace(
         config,
         panel_path=args.panel or config.panel_path,
         walkforward_artifact_dir=args.walkforward_dir or config.walkforward_artifact_dir,
         edge_artifact_dir=args.edge_dir or config.edge_artifact_dir,
-        artifact_dir=args.artifact_dir or config.artifact_dir,
+        artifact_dir=artifact_dir,
         table_dir=args.table_dir or config.table_dir,
         limit_rows=args.limit_rows if args.limit_rows is not None else config.limit_rows,
+        snapshot_variants_enabled=(
+            False if args.skip_snapshot_variants else config.snapshot_variants_enabled
+        ),
+        full_snapshot_variants_enabled=(
+            False if args.skip_full_snapshot_variants else config.full_snapshot_variants_enabled
+        ),
+        full_snapshot_variant_output_dir=full_variant_output_dir,
+        full_snapshot_variant_processed_dir=full_variant_processed_dir,
+        full_snapshot_variant_limit_contracts=(
+            args.variant_limit_contracts
+            if args.variant_limit_contracts is not None
+            else config.full_snapshot_variant_limit_contracts
+        ),
     )
-    summary = run_robustness(config, run_snapshot_variants=not args.skip_snapshot_variants)
+    summary = run_robustness(config)
     print(json.dumps(summary.__dict__, indent=2, sort_keys=True, default=str))
     return 0
 

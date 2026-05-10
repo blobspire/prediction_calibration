@@ -11,8 +11,17 @@ from typing import Any, cast
 import pandas as pd  # type: ignore[import-untyped]
 import yaml  # type: ignore[import-untyped]
 
+from predmkt.metrics.reliability import expected_calibration_error, reliability_bins
+
 DEFAULT_HORIZON_ORDER = ("30d", "14d", "7d", "3d", "1d", "6h", "1h", "15m", "close")
-DEFAULT_MODEL_ORDER = ("raw", "platt", "beta", "isotonic")
+DEFAULT_MODEL_ORDER = (
+    "raw",
+    "platt",
+    "beta",
+    "isotonic",
+    "binned_reliability",
+    "hierarchical_eb",
+)
 DEFAULT_FIGURE_FORMATS = ("png", "svg", "pdf")
 DEFAULT_TABLE_FORMATS = ("csv", "markdown", "latex")
 
@@ -21,9 +30,13 @@ DEFAULT_TABLE_FORMATS = ("csv", "markdown", "latex")
 class ReportingConfig:
     """Shared configuration for manuscript figures and tables."""
 
+    processed_dir: Path
+    modeling_panel_path: Path
     raw_baseline_artifact_dir: Path
     walkforward_artifact_dir: Path
     edge_artifact_dir: Path
+    inference_artifact_dir: Path
+    decomposition_artifact_dir: Path
     figure_dir: Path
     table_dir: Path
     artifact_run_label: str
@@ -66,9 +79,15 @@ def load_reporting_config(path: Path) -> ReportingConfig:
     outputs = _mapping(raw, "outputs")
     reporting = _mapping(raw, "reporting")
     return ReportingConfig(
+        processed_dir=Path(inputs.get("processed_dir", "data/processed")),
+        modeling_panel_path=Path(
+            inputs.get("modeling_panel_path", "data/processed/modeling_panel.parquet")
+        ),
         raw_baseline_artifact_dir=Path(_required(inputs, "raw_baseline_artifact_dir")),
         walkforward_artifact_dir=Path(_required(inputs, "walkforward_artifact_dir")),
         edge_artifact_dir=Path(_required(inputs, "edge_artifact_dir")),
+        inference_artifact_dir=Path(_required(inputs, "inference_artifact_dir")),
+        decomposition_artifact_dir=Path(_required(inputs, "decomposition_artifact_dir")),
         figure_dir=Path(_required(outputs, "figure_dir")),
         table_dir=Path(_required(outputs, "table_dir")),
         artifact_run_label=str(_required(reporting, "artifact_run_label")),
@@ -100,19 +119,57 @@ def make_manuscript_tables(config: ReportingConfig) -> ManuscriptTableSummary:
     sources = reporting_source_paths(config)
     aggregate = pd.read_parquet(sources["walkforward_aggregate_metrics"])
     edge_summary = pd.read_parquet(sources["edge_summary_by_model_tier"])
+    executability_audit = pd.read_parquet(sources["edge_executability_audit"])
+    fee_schedule_audit = pd.read_parquet(sources["edge_fee_schedule_audit"])
+    capacity_summary = pd.read_parquet(sources["edge_capacity_summary"])
+    simulated_pnl = pd.read_parquet(sources["edge_simulated_pnl"])
+    predictions = pd.read_parquet(sources["walkforward_predictions"])
+    panel = _modeling_panel_with_row_id(sources["modeling_panel"])
     raw_summary = _read_json(sources["raw_baseline_summary"])
     walkforward_summary = _read_json(sources["walkforward_summary"])
     edge_run_summary = _read_json(sources["edge_summary"])
+    inference_summary = _read_json(sources["inference_summary"])
+    score_intervals = pd.read_parquet(sources["inference_score_intervals"])
+    paired_differences = pd.read_parquet(sources["inference_paired_score_differences"])
+    calibration_intervals = pd.read_parquet(sources["inference_calibration_intervals"])
+    decomposition = pd.read_parquet(sources["decomposition_murphy_decomposition"])
+    decomposition_summary = _read_json(sources["decomposition_summary"])
 
     tables = {
-        "overall_score_comparison": _overall_score_table(aggregate, config),
-        "horizon_score_comparison": _horizon_score_table(aggregate, config),
-        "calibration_intercept_slope": _calibration_table(aggregate, config),
+        "overall_score_comparison": _overall_score_table(
+            aggregate,
+            score_intervals,
+            paired_differences,
+            config,
+        ),
+        "horizon_score_comparison": _horizon_score_table(
+            aggregate,
+            score_intervals,
+            paired_differences,
+            config,
+        ),
+        "calibration_intercept_slope": _calibration_table(
+            aggregate,
+            calibration_intervals,
+            config,
+        ),
         "edge_friction_sensitivity": _edge_table(edge_summary, config),
+        "edge_executability_audit": _edge_executability_table(executability_audit),
+        "edge_fee_schedule_audit": _edge_fee_schedule_table(fee_schedule_audit),
+        "edge_capacity_summary": _edge_capacity_table(capacity_summary, config),
+        "edge_simulated_pnl_summary": _edge_pnl_table(simulated_pnl, config),
+        "murphy_decomposition": _murphy_table(decomposition, config),
+        "domain_reliability_exploratory": _domain_reliability_table(
+            predictions,
+            panel,
+            config,
+        ),
         "artifact_source_limitations": _limitations_table(
             raw_summary,
             walkforward_summary,
             edge_run_summary,
+            inference_summary,
+            decomposition_summary,
             config,
         ),
     }
@@ -138,6 +195,11 @@ def reporting_source_paths(config: ReportingConfig) -> dict[str, Path]:
     """Return required saved-artifact paths for manuscript outputs."""
 
     return {
+        "snapshot_summary": config.processed_dir / "contract_horizon_panel_summary.json",
+        "taxonomy_summary": config.processed_dir / "contract_horizon_taxonomy_summary.json",
+        "modeling_summary": config.processed_dir / "modeling_panel_summary.json",
+        "split_summary": config.processed_dir / "walkforward_split_summary.json",
+        "modeling_panel": config.modeling_panel_path,
         "raw_baseline_summary": config.raw_baseline_artifact_dir / "summary.json",
         "raw_baseline_reliability_bins": (
             config.raw_baseline_artifact_dir / "reliability_bins.parquet"
@@ -153,6 +215,29 @@ def reporting_source_paths(config: ReportingConfig) -> dict[str, Path]:
         "edge_summary_by_model_tier": (
             config.edge_artifact_dir / "edge_summary_by_model_tier.parquet"
         ),
+        "edge_summary_by_side_model_tier": (
+            config.edge_artifact_dir / "edge_summary_by_side_model_tier.parquet"
+        ),
+        "edge_executability_audit": config.edge_artifact_dir / "executability_audit.parquet",
+        "edge_fee_schedule_audit": config.edge_artifact_dir / "fee_schedule_audit.parquet",
+        "edge_capacity_summary": config.edge_artifact_dir / "capacity_summary.parquet",
+        "edge_simulated_pnl": config.edge_artifact_dir / "simulated_pnl.parquet",
+        "inference_summary": config.inference_artifact_dir / "summary.json",
+        "inference_score_intervals": config.inference_artifact_dir / "score_intervals.parquet",
+        "inference_paired_score_differences": (
+            config.inference_artifact_dir / "paired_score_differences.parquet"
+        ),
+        "inference_calibration_intervals": (
+            config.inference_artifact_dir / "calibration_intervals.parquet"
+        ),
+        "inference_multiple_comparison_adjustments": (
+            config.inference_artifact_dir / "multiple_comparison_adjustments.parquet"
+        ),
+        "decomposition_summary": config.decomposition_artifact_dir / "summary.json",
+        "decomposition_murphy_decomposition": (
+            config.decomposition_artifact_dir / "murphy_decomposition.parquet"
+        ),
+        "decomposition_murphy_bins": config.decomposition_artifact_dir / "murphy_bins.parquet",
     }
 
 
@@ -161,9 +246,13 @@ def effective_reporting_config(config: ReportingConfig) -> dict[str, Any]:
 
     return {
         "inputs": {
+            "processed_dir": str(config.processed_dir),
+            "modeling_panel_path": str(config.modeling_panel_path),
             "raw_baseline_artifact_dir": str(config.raw_baseline_artifact_dir),
             "walkforward_artifact_dir": str(config.walkforward_artifact_dir),
             "edge_artifact_dir": str(config.edge_artifact_dir),
+            "inference_artifact_dir": str(config.inference_artifact_dir),
+            "decomposition_artifact_dir": str(config.decomposition_artifact_dir),
         },
         "outputs": {
             "figure_dir": str(config.figure_dir),
@@ -194,8 +283,9 @@ def validate_required_artifacts(config: ReportingConfig) -> dict[str, Path]:
     if missing:
         raise ReportingError(
             "missing saved result artifacts for manuscript outputs. Run the full Phase 7 "
-            "walk-forward evaluation and Phase 8 edge simulation first, or explicitly "
-            f"override artifact directories for a smoke/draft run. Missing: {missing}"
+            "walk-forward evaluation, Phase 8 edge simulation, and Phase 13 inference "
+            "first, or explicitly override artifact directories for a smoke/draft run. "
+            f"Missing: {missing}"
         )
     if config.artifact_run_label == "full":
         smoke_paths = [
@@ -203,6 +293,8 @@ def validate_required_artifacts(config: ReportingConfig) -> dict[str, Path]:
             for path in (
                 config.walkforward_artifact_dir,
                 config.edge_artifact_dir,
+                config.inference_artifact_dir,
+                config.decomposition_artifact_dir,
             )
             if "smoke" in str(path)
         ]
@@ -214,20 +306,51 @@ def validate_required_artifacts(config: ReportingConfig) -> dict[str, Path]:
     return sources
 
 
-def _overall_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+def _overall_score_table(
+    aggregate: pd.DataFrame,
+    score_intervals: pd.DataFrame,
+    paired_differences: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
     rows = _metric_rows(aggregate, config, grouping_name="overall")
     rows = _ordered_models(rows, config)
     rows = _add_raw_deltas(rows)
+    rows = _add_score_inference_columns(
+        rows,
+        score_intervals,
+        paired_differences,
+        grouping_name="overall",
+    )
     return rows[
         [
             "model_name",
             "row_count",
             "brier_score",
             "brier_delta_vs_raw",
+            "brier_score_ci_lower",
+            "brier_score_ci_upper",
+            "brier_delta_ci_lower",
+            "brier_delta_ci_upper",
+            "brier_delta_p_value",
+            "brier_delta_q_value",
             "log_loss",
             "log_loss_delta_vs_raw",
+            "log_loss_ci_lower",
+            "log_loss_ci_upper",
+            "log_loss_delta_ci_lower",
+            "log_loss_delta_ci_upper",
+            "log_loss_delta_p_value",
+            "log_loss_delta_q_value",
             "expected_calibration_error",
             "ece_delta_vs_raw",
+            "ece_ci_lower",
+            "ece_ci_upper",
+            "ece_delta_ci_lower",
+            "ece_delta_ci_upper",
+            "ece_delta_p_value",
+            "ece_delta_q_value",
+            "effective_cluster_count",
+            "cluster_count",
             "calibration_intercept",
             "calibration_slope",
             "calibration_status",
@@ -235,10 +358,21 @@ def _overall_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd
     ].copy()
 
 
-def _horizon_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+def _horizon_score_table(
+    aggregate: pd.DataFrame,
+    score_intervals: pd.DataFrame,
+    paired_differences: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
     rows = _metric_rows(aggregate, config, grouping_name="horizon")
     rows = _ordered_models(_ordered_horizons(rows, config), config)
     rows = _add_raw_deltas(rows, group_columns=("horizon_name",))
+    rows = _add_score_inference_columns(
+        rows,
+        score_intervals,
+        paired_differences,
+        grouping_name="horizon",
+    )
     return rows[
         [
             "horizon_name",
@@ -246,24 +380,57 @@ def _horizon_score_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd
             "row_count",
             "brier_score",
             "brier_delta_vs_raw",
+            "brier_score_ci_lower",
+            "brier_score_ci_upper",
+            "brier_delta_ci_lower",
+            "brier_delta_ci_upper",
+            "brier_delta_p_value",
+            "brier_delta_q_value",
             "log_loss",
             "log_loss_delta_vs_raw",
+            "log_loss_ci_lower",
+            "log_loss_ci_upper",
+            "log_loss_delta_ci_lower",
+            "log_loss_delta_ci_upper",
+            "log_loss_delta_p_value",
+            "log_loss_delta_q_value",
             "expected_calibration_error",
             "ece_delta_vs_raw",
+            "ece_ci_lower",
+            "ece_ci_upper",
+            "ece_delta_ci_lower",
+            "ece_delta_ci_upper",
+            "ece_delta_p_value",
+            "ece_delta_q_value",
+            "effective_cluster_count",
+            "cluster_count",
         ]
     ].copy()
 
 
-def _calibration_table(aggregate: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+def _calibration_table(
+    aggregate: pd.DataFrame,
+    calibration_intervals: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
     rows = _metric_rows(aggregate, config, grouping_name="horizon")
     rows = _ordered_models(_ordered_horizons(rows, config), config)
+    rows = _add_calibration_inference_columns(rows, calibration_intervals)
     return rows[
         [
             "horizon_name",
             "model_name",
             "row_count",
             "calibration_intercept",
+            "calibration_intercept_ci_lower",
+            "calibration_intercept_ci_upper",
+            "calibration_intercept_p_value",
             "calibration_slope",
+            "calibration_slope_ci_lower",
+            "calibration_slope_ci_upper",
+            "calibration_slope_p_value",
+            "effective_cluster_count",
+            "cluster_count",
             "calibration_status",
         ]
     ].copy()
@@ -290,10 +457,200 @@ def _edge_table(edge_summary: pd.DataFrame, config: ReportingConfig) -> pd.DataF
     return rows[[column for column in columns if column in rows.columns]].copy()
 
 
+def _edge_executability_table(executability_audit: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "execution_mode",
+        "quote_mode_used",
+        "input_prediction_rows",
+        "rows_with_attached_quote",
+        "candidate_rows",
+        "no_side_candidate_rows",
+        "synthetic_no_candidate_rows",
+        "future_quote_candidate_rows",
+        "quote_depth_available",
+        "capacity_source",
+        "executable_profit_evidence",
+        "screen_language",
+        "limitations",
+    ]
+    return executability_audit[[column for column in columns if column in executability_audit]]
+
+
+def _edge_fee_schedule_table(fee_schedule_audit: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "fee_schedule_id",
+        "start_date",
+        "end_date",
+        "formula",
+        "fee_rate",
+        "source_status",
+        "candidate_row_count",
+        "source_note",
+    ]
+    return fee_schedule_audit[[column for column in columns if column in fee_schedule_audit]]
+
+
+def _edge_capacity_table(capacity_summary: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+    if capacity_summary.empty:
+        return capacity_summary.copy()
+    rows = _ordered_models(capacity_summary.copy(), config)
+    columns = [
+        "trade_side",
+        "model_name",
+        "friction_tier",
+        "candidate_row_count",
+        "selected_row_count",
+        "assumed_contracts",
+        "capacity_source",
+        "selected_total_simulated_realized_net",
+        "selected_total_effective_cost",
+    ]
+    return rows[[column for column in columns if column in rows.columns]].copy()
+
+
+def _edge_pnl_table(simulated_pnl: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+    columns = [
+        "model_name",
+        "friction_tier",
+        "trade_side",
+        "selected_trade_count",
+        "final_cumulative_simulated_pnl",
+        "pnl_label",
+    ]
+    if simulated_pnl.empty:
+        return pd.DataFrame(columns=columns)
+    rows: list[dict[str, Any]] = []
+    for (model_name, tier, trade_side), frame in simulated_pnl.groupby(
+        ["model_name", "friction_tier", "trade_side"],
+        dropna=False,
+        observed=True,
+    ):
+        ordered = frame.sort_values(["forecast_ts", "row_id"])
+        rows.append(
+            {
+                "model_name": str(model_name),
+                "friction_tier": str(tier),
+                "trade_side": str(trade_side),
+                "selected_trade_count": int(len(ordered)),
+                "final_cumulative_simulated_pnl": float(
+                    ordered["cumulative_simulated_pnl"].astype(float).iloc[-1]
+                ),
+                "pnl_label": str(ordered["pnl_label"].iloc[-1]),
+            }
+        )
+    output = _ordered_models(pd.DataFrame(rows), config)
+    return output[columns].copy()
+
+
+def _murphy_table(decomposition: pd.DataFrame, config: ReportingConfig) -> pd.DataFrame:
+    rows = decomposition[
+        (decomposition["grouping_name"] == "overall")
+        & (decomposition["model_name"].isin(config.model_order))
+    ].copy()
+    rows = _ordered_models(rows, config)
+    columns = [
+        "model_name",
+        "row_count",
+        "raw_brier",
+        "reliability",
+        "resolution",
+        "uncertainty",
+        "decomposed_brier",
+        "binning_residual",
+        "nonempty_bin_count",
+        "empty_bin_count",
+        "sparse_bin_count",
+        "status",
+    ]
+    return rows[[column for column in columns if column in rows.columns]].copy()
+
+
+def _domain_reliability_table(
+    predictions: pd.DataFrame,
+    panel: pd.DataFrame,
+    config: ReportingConfig,
+) -> pd.DataFrame:
+    required_panel_columns = {"row_id", "domain", "taxonomy_confidence", "taxonomy_ambiguous"}
+    if not required_panel_columns <= set(panel.columns):
+        return pd.DataFrame(
+            [
+                {
+                    "domain": "not_available",
+                    "model_name": "not_available",
+                    "row_count": 0,
+                    "expected_calibration_error": None,
+                    "claim_status": "not_available",
+                    "notes": "modeling panel lacks taxonomy columns needed for domain reliability",
+                }
+            ]
+        )
+    joined = predictions.merge(
+        panel[["row_id", "domain", "taxonomy_confidence", "taxonomy_ambiguous"]],
+        on="row_id",
+        how="left",
+        validate="many_to_one",
+    )
+    rows: list[dict[str, Any]] = []
+    for (domain, model_name), frame in joined.groupby(
+        ["domain", "model_name"],
+        dropna=False,
+        observed=True,
+    ):
+        if str(model_name) not in config.model_order:
+            continue
+        if frame.empty:
+            continue
+        bins = reliability_bins(
+            frame["predicted_probability"].astype(float).tolist(),
+            frame["observed_outcome"].astype(float).tolist(),
+            bin_count=config.reliability_bin_count,
+            min_bin_count=config.reliability_min_bin_count,
+        )
+        ece = expected_calibration_error(bins)
+        ambiguous_share = float(frame["taxonomy_ambiguous"].fillna(False).astype(bool).mean())
+        low_confidence_share = float(
+            frame["taxonomy_confidence"].astype(str).str.lower().isin({"low", "ambiguous"}).mean()
+        )
+        rows.append(
+            {
+                "domain": str(domain),
+                "model_name": str(model_name),
+                "row_count": int(len(frame)),
+                "expected_calibration_error": float(ece),
+                "ambiguous_share": ambiguous_share,
+                "low_confidence_or_ambiguous_share": low_confidence_share,
+                "claim_status": "exploratory_taxonomy_review_required",
+                "notes": (
+                    "Domain reliability is generated from saved artifacts only and "
+                    "requires taxonomy-confidence review before confirmatory claims."
+                ),
+            }
+        )
+    if not rows:
+        return pd.DataFrame(
+            [
+                {
+                    "domain": "not_available",
+                    "model_name": "not_available",
+                    "row_count": 0,
+                    "expected_calibration_error": None,
+                    "claim_status": "not_available",
+                    "notes": "no domain/model rows were available",
+                }
+            ]
+        )
+    output = _ordered_models(pd.DataFrame(rows), config)
+    return output.drop(columns=["model_order"], errors="ignore").sort_values(
+        ["domain", "model_name"]
+    )
+
+
 def _limitations_table(
     raw_summary: dict[str, Any],
     walkforward_summary: dict[str, Any],
     edge_summary: dict[str, Any],
+    inference_summary: dict[str, Any],
+    decomposition_summary: dict[str, Any],
     config: ReportingConfig,
 ) -> pd.DataFrame:
     rows: list[dict[str, str]] = [
@@ -313,10 +670,175 @@ def _limitations_table(
         ("raw_baseline", raw_summary),
         ("walkforward", walkforward_summary),
         ("edge_simulation", edge_summary),
+        ("inference", inference_summary),
+        ("decomposition", decomposition_summary),
     ):
         for limitation in summary.get("limitations", []):
             rows.append({"source": source, "limitation": str(limitation)})
     return pd.DataFrame(rows)
+
+
+def _modeling_panel_with_row_id(path: Path) -> pd.DataFrame:
+    panel = pd.read_parquet(path)
+    panel = panel.copy()
+    if "row_id" not in panel.columns:
+        panel.insert(0, "row_id", range(len(panel)))
+    return panel
+
+
+def _add_score_inference_columns(
+    rows: pd.DataFrame,
+    score_intervals: pd.DataFrame,
+    paired_differences: pd.DataFrame,
+    *,
+    grouping_name: str,
+) -> pd.DataFrame:
+    output = rows.copy()
+    metric_specs = (
+        ("brier_score", "brier_score", "brier_delta"),
+        ("log_loss", "log_loss", "log_loss_delta"),
+        ("expected_calibration_error", "ece", "ece_delta"),
+    )
+    score_rows = score_intervals[score_intervals["grouping_name"] == grouping_name].copy()
+    paired_rows = paired_differences[
+        paired_differences["grouping_name"] == grouping_name
+    ].copy()
+    for metric_name, score_prefix, delta_prefix in metric_specs:
+        score_metric = score_rows[score_rows["metric_name"] == metric_name][
+            [
+                "model_name",
+                "group_key",
+                "ci_lower",
+                "ci_upper",
+                "cluster_count",
+                "effective_cluster_count",
+                "bootstrap_status",
+            ]
+        ].rename(
+            columns={
+                "ci_lower": f"{score_prefix}_ci_lower",
+                "ci_upper": f"{score_prefix}_ci_upper",
+                "bootstrap_status": f"{score_prefix}_bootstrap_status",
+            }
+        )
+        if not score_metric.empty:
+            output = output.merge(
+                score_metric,
+                on=["model_name", "group_key"],
+                how="left",
+                validate="one_to_one",
+                suffixes=("", f"_{score_prefix}"),
+            )
+        paired_metric = paired_rows[paired_rows["metric_name"] == metric_name][
+            [
+                "model_name",
+                "group_key",
+                "ci_lower",
+                "ci_upper",
+                "p_value",
+                "q_value",
+                "reject_fdr",
+                "bootstrap_status",
+            ]
+        ].rename(
+            columns={
+                "ci_lower": f"{delta_prefix}_ci_lower",
+                "ci_upper": f"{delta_prefix}_ci_upper",
+                "p_value": f"{delta_prefix}_p_value",
+                "q_value": f"{delta_prefix}_q_value",
+                "reject_fdr": f"{delta_prefix}_reject_fdr",
+                "bootstrap_status": f"{delta_prefix}_bootstrap_status",
+            }
+        )
+        if not paired_metric.empty:
+            output = output.merge(
+                paired_metric,
+                on=["model_name", "group_key"],
+                how="left",
+                validate="one_to_one",
+            )
+    if "cluster_count" not in output.columns:
+        output["cluster_count"] = pd.NA
+    if "effective_cluster_count" not in output.columns:
+        output["effective_cluster_count"] = pd.NA
+    for column in _score_inference_columns():
+        if column not in output.columns:
+            output[column] = pd.NA
+    return output
+
+
+def _add_calibration_inference_columns(
+    rows: pd.DataFrame,
+    calibration_intervals: pd.DataFrame,
+) -> pd.DataFrame:
+    output = rows.copy()
+    source = calibration_intervals[calibration_intervals["grouping_name"] == "horizon"].copy()
+    for parameter in ("calibration_intercept", "calibration_slope"):
+        metric = source[source["parameter"] == parameter][
+            [
+                "model_name",
+                "group_key",
+                "ci_lower",
+                "ci_upper",
+                "p_value",
+                "cluster_count",
+                "effective_cluster_count",
+                "bootstrap_status",
+            ]
+        ].rename(
+            columns={
+                "ci_lower": f"{parameter}_ci_lower",
+                "ci_upper": f"{parameter}_ci_upper",
+                "p_value": f"{parameter}_p_value",
+                "bootstrap_status": f"{parameter}_bootstrap_status",
+            }
+        )
+        if not metric.empty:
+            output = output.merge(
+                metric,
+                on=["model_name", "group_key"],
+                how="left",
+                validate="one_to_one",
+                suffixes=("", f"_{parameter}"),
+            )
+    if "cluster_count" not in output.columns:
+        output["cluster_count"] = pd.NA
+    if "effective_cluster_count" not in output.columns:
+        output["effective_cluster_count"] = pd.NA
+    for column in (
+        "calibration_intercept_ci_lower",
+        "calibration_intercept_ci_upper",
+        "calibration_intercept_p_value",
+        "calibration_slope_ci_lower",
+        "calibration_slope_ci_upper",
+        "calibration_slope_p_value",
+    ):
+        if column not in output.columns:
+            output[column] = pd.NA
+    return output
+
+
+def _score_inference_columns() -> tuple[str, ...]:
+    return (
+        "brier_score_ci_lower",
+        "brier_score_ci_upper",
+        "brier_delta_ci_lower",
+        "brier_delta_ci_upper",
+        "brier_delta_p_value",
+        "brier_delta_q_value",
+        "log_loss_ci_lower",
+        "log_loss_ci_upper",
+        "log_loss_delta_ci_lower",
+        "log_loss_delta_ci_upper",
+        "log_loss_delta_p_value",
+        "log_loss_delta_q_value",
+        "ece_ci_lower",
+        "ece_ci_upper",
+        "ece_delta_ci_lower",
+        "ece_delta_ci_upper",
+        "ece_delta_p_value",
+        "ece_delta_q_value",
+    )
 
 
 def _metric_rows(
@@ -471,8 +993,13 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _common_limitations(config: ReportingConfig) -> list[str]:
     return [
         "Manuscript outputs consume saved result artifacts and do not recompute core models.",
-        "Domain/category manuscript outputs are omitted while taxonomy coverage remains unknown.",
+        "Domain/category manuscript outputs remain exploratory because taxonomy coverage "
+        "includes lower-confidence title rules plus ambiguous and unknown rows.",
         "Edge outputs are simulated expected-value screens, not executable trading profits.",
+        "Phase 16 quote snapshots do not include order-book depth, so capacity and PnL "
+        "remain assumption-dependent.",
+        "Score intervals and p-values use event-family clustered inference artifacts.",
+        "Murphy decomposition uses binned saved predictions and reports the binning residual.",
         f"Artifact run label is {config.artifact_run_label}.",
     ]
 

@@ -204,7 +204,8 @@ def build_presentation_figures(
         limitations=[
             "Presentation figures use current raw-baseline artifacts only; they are not "
             "walk-forward or recalibrated-model results.",
-            "Domain/category findings remain unavailable because taxonomy coverage is unknown.",
+            "Domain/category findings remain exploratory because taxonomy coverage mixes "
+            "high-confidence ticker rules with lower-confidence title and unknown rows.",
             "Snapshot prices are transaction-derived probabilities, not executable quotes.",
             "Before-refinement comparison uses recorded audit summary values, not a retained "
             "separate pre-refinement artifact directory.",

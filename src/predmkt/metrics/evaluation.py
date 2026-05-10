@@ -11,7 +11,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from predmkt.metrics.calibration import fit_calibration_intercept_slope
 
@@ -171,7 +171,10 @@ def evaluate_raw_panel(config: MetricsConfig) -> MetricsEvaluationSummary:
     try:
         con.execute("PRAGMA threads=4")
         _create_base_panel(con, config)
-        input_row_count = int(con.execute("SELECT count(*) FROM base_panel").fetchone()[0])
+        input_count_row = con.execute("SELECT count(*) FROM base_panel").fetchone()
+        if input_count_row is None:
+            raise MetricsValidationError("failed to count base_panel rows")
+        input_row_count = int(input_count_row[0])
         available_columns = set(_table_columns(con, "base_panel"))
         missing_required = [
             column
@@ -189,7 +192,10 @@ def evaluate_raw_panel(config: MetricsConfig) -> MetricsEvaluationSummary:
             )
         _validate_probability_and_outcome_ranges(con, config)
         _create_scored_panel(con, config, available_columns)
-        scored_row_count = int(con.execute("SELECT count(*) FROM scored_panel").fetchone()[0])
+        scored_count_row = con.execute("SELECT count(*) FROM scored_panel").fetchone()
+        if scored_count_row is None:
+            raise MetricsValidationError("failed to count scored_panel rows")
+        scored_row_count = int(scored_count_row[0])
         dropped_missing_required_count = input_row_count - scored_row_count
         if scored_row_count == 0:
             raise MetricsValidationError(
@@ -269,8 +275,9 @@ def evaluate_raw_panel(config: MetricsConfig) -> MetricsEvaluationSummary:
                 "model evaluation are implemented here.",
                 "Primary aggregation is equal-contract; trade-weighted metrics are disabled "
                 "unless explicitly enabled as a robustness output.",
-                "Domain/category groups should not be interpreted as domain findings while "
-                "taxonomy coverage remains unknown.",
+                "Domain/category groups use the audited rule-based taxonomy; title-keyword, "
+                "ambiguous, and unknown assignments remain exploratory rather than "
+                "confirmatory domain findings.",
                 "Liquidity and staleness groups use public feature-panel proxies, not "
                 "historical order-book depth or executable quotes.",
             ],
@@ -316,6 +323,8 @@ def _validate_probability_and_outcome_ranges(
         FROM base_panel
         """
     ).fetchone()
+    if bad_values is None:
+        raise MetricsValidationError("failed to validate probability/outcome ranges")
     invalid_probability = int(bad_values[0] or 0)
     invalid_outcome = int(bad_values[1] or 0)
     if invalid_probability or invalid_outcome:
@@ -669,15 +678,14 @@ def _missing_feature_notes(
             )
     for column in ("domain", "category"):
         if column in available_columns:
-            unknown_count = int(
-                con.execute(
-                    f"""
-                    SELECT count(*)
-                    FROM scored_panel
-                    WHERE {_ident(column)} IS NULL OR {_ident(column)} = 'unknown'
-                    """
-                ).fetchone()[0]
-            )
+            unknown_row = con.execute(
+                f"""
+                SELECT count(*)
+                FROM scored_panel
+                WHERE {_ident(column)} IS NULL OR {_ident(column)} = 'unknown'
+                """
+            ).fetchone()
+            unknown_count = int(unknown_row[0]) if unknown_row is not None else 0
             if unknown_count:
                 notes.append(
                     {
@@ -798,7 +806,7 @@ def _write_pylist_table(rows: list[dict[str, Any]], schema: pa.Schema, path: Pat
         table = pa.Table.from_pylist(rows, schema=schema)
     else:
         table = pa.Table.from_arrays([[] for _ in schema], schema=schema)
-    pq.write_table(table, path)
+    pq.write_table(table, path)  # type: ignore[no-untyped-call]
 
 
 def _calibration_schema() -> pa.Schema:

@@ -92,6 +92,19 @@ def test_event_family_leakage_detection_strict_overlap(tmp_path: Path) -> None:
     )
 
 
+def test_hardened_event_family_ids_drive_leakage_detection(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    source = _panel()
+    source.loc[[0, 4, 8], "event_family_id"] = "sports:nfl:25NOV02KCBUF"
+    panel, _ = normalize_split_panel(source, config)
+    fold = make_walkforward_folds(panel, config)[0]
+    assignments = assign_walkforward_splits(panel, [fold])
+
+    leakage = detect_event_family_leakage(assignments)
+
+    assert "sports:nfl:25NOV02KCBUF" in set(leakage["event_family_id"])
+
+
 def test_no_event_family_leakage_when_families_are_disjoint(tmp_path: Path) -> None:
     config = _config(tmp_path)
     source = _panel()
